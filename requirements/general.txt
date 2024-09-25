@@ -1,0 +1,31 @@
+# General Packages
+--index-url https://pypi.org/simple
+
+accelerate
+bs4
+chromadb
+datasets
+faiss-gpu-cu12
+fastapi
+flake8
+gguf
+huggingface-hub
+langchain
+langchain-chroma
+langchain-community
+langchain-huggingface
+langchain-openai
+langserve
+lark
+matplotlib
+numpy
+ollama
+pandas
+pymupdf
+pypdf
+rank_bm25
+sentence-transformers
+sse_starlette
+streamlit
+transformers
+uvicorn

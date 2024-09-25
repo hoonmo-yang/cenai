@@ -399,3 +399,11 @@ FodyWeavers.xsd
 
 # .env file
 .env
+
+# freeze file
+freeze.txt
+freeze.bak
+
+model/
+
+!bin/
