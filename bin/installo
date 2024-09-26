@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import os
 
-from cenai_core import (cenai_path, extern_exec)
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -23,9 +23,9 @@ def get_args() -> argparse.Namespace:
 
 def main() -> int:
     option = get_args()
-    work_dir = cenai_path()
+    work_dir = os.environ["CENAI_DIR"]
 
-    status = extern_exec(
+    status = os.system(
         f"make -C {work_dir} {option.target}"
     )
 

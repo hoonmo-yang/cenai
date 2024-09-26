@@ -1,11 +1,17 @@
-from langchain_community.chat_models import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from cenai_core import load_dotenv
+from cenai_core import (LangchainHelper, load_dotenv)
 
 
 load_dotenv()
+
+model_name = "gpt-3.5-turbo"
+model_name = "llama3.1:latest"
+model_name = "llama3.1:70b"
+
+LangchainHelper.bind_model(model_name)
+model = LangchainHelper.load_model()
 
 chat_prompt = ChatPromptTemplate.from_messages([
     ("system", "당신은 친절한 AI 어시스턴트입니다. 당신의 이름은 {name}입니다."),
@@ -19,15 +25,11 @@ messages = chat_prompt.format_messages(
     user_input="당신의 이름은 무엇입니까?",
 )
 
-llm = ChatOllama(
-    model="llama3.1:latest",
-)
-
-chain = llm | StrOutputParser()
+chain = model | StrOutputParser()
 
 print(chain.invoke(messages))
 
-chain = chat_prompt | llm | StrOutputParser()
+chain = chat_prompt | model | StrOutputParser()
 
 print(chain.invoke({
     "name": "Teddy",

@@ -1,5 +1,3 @@
-from langchain_community.chat_models import ChatOllama
-
 from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
@@ -7,10 +5,17 @@ from langchain_core.prompts import (
 
 from langchain_core.output_parsers import StrOutputParser
 
-from cenai_core import load_dotenv
+from cenai_core import (LangchainHelper, load_dotenv)
 
 
 load_dotenv()
+
+model_name = "gpt-3.5-turbo"
+model_name = "llama3.1:latest"
+model_name = "llama3.1:70b"
+
+LangchainHelper.bind_model(model_name)
+model = LangchainHelper.load_model()
 
 prompt = ChatPromptTemplate.from_messages([
     (
@@ -24,11 +29,7 @@ prompt = ChatPromptTemplate.from_messages([
     ),
 ])
 
-llm = ChatOllama(
-    model="llama3.1:latest",
-)
-
-chain = prompt | llm | StrOutputParser()
+chain = prompt | model | StrOutputParser()
 
 print(chain.invoke({
     "word_count": 8,

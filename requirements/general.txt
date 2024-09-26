@@ -2,6 +2,7 @@
 --index-url https://pypi.org/simple
 
 accelerate
+bitsandbytes
 bs4
 chromadb
 datasets

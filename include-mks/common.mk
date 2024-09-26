@@ -5,6 +5,7 @@ AWK = awk
 BASE64 = base64
 BASH = bash
 CHMOD = chmod
+CMP = cmp
 CONDA = conda
 CP = cp
 DOCKER = docker

@@ -6,11 +6,13 @@ list::
 	conda $@
 
 install::
-	$(MV) freeze.txt freeze.bak
-	$(PIP) -U install requirements.txt
-	$(PIP) freeze > freeze.txt
+	$(PIP) install -U -r requirements.txt
+	@$(PIP) freeze > freeze.tmp
+	@$(CMP) -s freeze.txt freeze.tmp || ($(MV) freeze.txt freeze.bak && $(MV) freeze.tmp freeze.txt)
+	@$(RM) -f freeze.tmp
 
 clean:: 
-	$(MV) freeze.txt freeze.bak
-	$(PIP) -U uninstall requirements.txt
-	$(PIP) freeze > freeze.txt
+	$(PIP) uninstall -U -r requirements.txt
+	@$(PIP) freeze > freeze.tmp
+	@$(CMP) -s freeze.txt freeze.tmp || ($(MV) freeze.txt freeze.bak && $(MV) freeze.tmp freeze.txt)
+	@$(RM) -f freeze.tmp

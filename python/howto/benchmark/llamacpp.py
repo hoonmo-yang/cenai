@@ -8,11 +8,9 @@ from cenai_core import (cenai_path, load_dotenv, Timer)
 load_dotenv()
 
 template = """
-아래 질문에 답변만 해.
-답변은 아래와 나온 예처럼 하고 그외 다른 말은 절대 하지마.
+질문에 대한 답을 말하고 그 외는 어떤 것도 말하지 않습니다.
 
-#질문: {country}의 수도는 어디야?
-#답변의 예: 한국의 수도는 서울입니다.
+질문: {country}의 수도는 어디입니까?
 """
 
 prompt = ChatPromptTemplate.from_template(template)
@@ -36,16 +34,6 @@ timer = Timer()
 
 print(chain.invoke({
     "country": "대한민국",
-}))
-
-timer.lap()
-
-print(f"elapsed: {timer.seconds}S")
-
-timer.start()
-
-print(chain.invoke({
-    "country": "일본",
 }))
 
 timer.lap()
