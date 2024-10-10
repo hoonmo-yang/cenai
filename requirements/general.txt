@@ -6,7 +6,6 @@ bitsandbytes
 bs4
 chromadb
 datasets
-faiss-gpu-cu12
 fastapi
 flake8
 gguf

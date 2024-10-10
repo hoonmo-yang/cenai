@@ -18,6 +18,7 @@ JQ = jq
 LN = ln
 KUBECTL = kubectl
 MKDIR = mkdir
+MV = mv
 PIP = pip
 RM = rm
 SLEEP = sleep
