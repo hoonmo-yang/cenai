@@ -9,6 +9,8 @@ load_dotenv()
 model_name = "gpt-3.5-turbo"
 model_name = "llama3.1:latest"
 model_name = "llama3.1:70b"
+model_name = "gpt-4o"
+model_name = "gpt-3.5-turbo"
 
 LangchainHelper.bind_model(model_name)
 model = LangchainHelper.load_model()

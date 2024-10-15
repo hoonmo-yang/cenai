@@ -1,4 +1,4 @@
-# PyTorch GPU version installation
+# PyTorch AMD ROCM version installation
 --extra-index-url https://download.pytorch.org/whl/nightly/rocm6.2
 
 torch

@@ -1,4 +1,4 @@
-# PyTorch GPU version installation
+# PyTorch CUDA version installation
 --extra-index-url https://download.pytorch.org/whl/cu124
 
 torch

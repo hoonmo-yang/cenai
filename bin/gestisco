@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+import argparse
+import os
+
+from cenai_bin import eprint
+
+
+def get_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="cenai management"
+    )
+    parser.add_argument(
+        "target",
+        choices=[
+            "list",
+            "install",
+            "clean",
+            "interactive",
+        ],
+        nargs="?",
+        default="interactive",
+        help="task to do"
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    option = get_args()
+    work_dir = os.environ.get("CENAI_DIR")
+    engine = os.environ.get("CENAI_ENGINE")
+
+    if work_dir is None:
+        eprint("Error: you must specify CENAI_DIR env var.")
+        exit(-1)
+
+    if engine is None:
+        eprint(
+            "The CENAI_ENGINE environment variable isn't defined.\n"
+            "The variable will accept one of: cuda, rocm, or cpu."
+        )
+
+        answer = input(
+            "Would you like to proceed by setting it to cpu? [yn]: "
+        )
+
+        if "n" in answer.lower():
+            eprint("\nBye")
+            exit(-1)
+
+        eprint("")
+
+    if option.target == "interactive":
+        targets = ["install", "clean", "list"]
+
+        eprint("Task list\n")
+
+        while True:
+            answer = input(
+                "[1] install related python packages\n"
+                "[2] clean all the python packages already installed\n"
+                "[3] list all the installed python packages\n\n"
+                "Select the task by number: "
+            )
+
+            k = int(answer.strip())
+
+            if k in [1, 2, 3]:
+                break
+
+            eprint(f"\nwrong number {k}. It should be within [1, 3]\n")
+
+        target = targets[k - 1]
+
+    else:
+        target = option.target
+
+    status = os.system(
+        f"make -C {work_dir} {target}"
+    )
+
+    if status:
+        exit(-1)
+
+
+if __name__ == "__main__":
+    main()
