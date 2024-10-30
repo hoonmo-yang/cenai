@@ -20,10 +20,12 @@ lark
 matplotlib
 numpy
 ollama
+openpyxl
 pandas
 pymupdf
 pypdf
 rank_bm25
+rapidfuzz
 sentence-transformers
 sse_starlette
 streamlit

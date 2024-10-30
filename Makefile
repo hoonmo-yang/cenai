@@ -11,7 +11,6 @@ install::
 
 ifeq ($(CENAI_ENGINE),cuda)
 	$(PIP) install -U -r requirements/etc_cuda.txt
-	$(PIP) install -U -r requirements/llamacpp_cuda.txt
 	$(PIP) install -U -r requirements/pytorch_cuda.txt
 else
 ifeq ($(CENAI_ENGINE),rocm)

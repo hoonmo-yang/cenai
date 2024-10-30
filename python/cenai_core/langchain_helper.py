@@ -4,6 +4,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import (ChatOpenAI, OpenAIEmbeddings)
 
+from cenai_core.hyperclovax import HyperCLOVAXChatModel, HyperCLOVAXEmbeddings
 
 default_model_name = "llama3.1:latest"
 
@@ -19,6 +20,7 @@ class LangchainHelper:
     def load_model(cls, **kwargs) -> BaseChatModel:
         caller = (
             ChatOpenAI if "gpt" in cls.model_name.lower() else
+            HyperCLOVAXChatModel if "hyperclovax" else
             ChatOllama
         )
 
@@ -29,7 +31,12 @@ class LangchainHelper:
     @classmethod
     def load_embeddings(cls, **kwargs) -> Embeddings:
         embeddings = (
-            OpenAIEmbeddings(**kwargs) if "gpt" in cls.model_name.lower() else
+            OpenAIEmbeddings(**kwargs)
+            if "gpt" in cls.model_name.lower() else
+
+            HyperCLOVAXEmbeddings()
+            if "hyperclovax" in cls.model_name.lower() else
+            
             HuggingFaceEmbeddings(
                 model_name="BAAI/bge-m3",
                 model_kwargs={"device": "cuda"},

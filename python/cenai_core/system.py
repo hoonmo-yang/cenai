@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import timedelta
 import dotenv
 import os
@@ -9,9 +10,13 @@ def cenai_path(*args) -> Path:
     return Path(os.environ["CENAI_DIR"]).joinpath(*args)
 
 
-def load_dotenv() -> None:
+def load_dotenv(langsmith: Optional[bool] = None) -> None:
     dotenv_path = cenai_path("cf/.env")
     dotenv.load_dotenv(dotenv_path)
+
+    if langsmith is not None:
+        value = "true" if langsmith else "false"
+        os.environ["LANGCHAIN_TRACING_V2"] = value
 
 
 class Timer:
