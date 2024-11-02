@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+import argparse
+from pathlib import Path
+
+from cenai_core import Logger
+from cenai_core.dataman import Q
+
+from amc.pdac_classifier import PDACClassifier
+
+
+class PDACClassification(Logger):
+    grid_dir = Path("grid")
+    logger_name = "amc.pdac_classifier"
+    debug_grid = "debug"
+
+    def __init__(self):
+        super().__init__()
+
+    @classmethod
+    def _get_args(cls) -> argparse.Namespace:
+        parser = argparse.ArgumentParser(
+            description="PDAC report classifier"
+        )
+
+        parser.add_argument(
+            "-d",
+            "--debug",
+            action="store_true",
+            default=False,
+            help="debug mode"
+        )
+
+        parser.add_argument(
+            "-b",
+            "--batch",
+            nargs="*",
+            default=[],
+            help="batch mode"
+        )
+
+        return parser.parse_args()
+
+    @classmethod
+    def _choose_grid(cls,
+                     debug: bool,
+                     batch: list[Path]
+                     ) -> list[Path]:
+        if debug:
+            return [cls.grid_dir / f"{cls.debug_grid}.yaml"]
+
+        if batch:
+            return [
+                cls.grid_dir / f"{grid}.yaml" for grid in batch
+            ]
+
+        grids = list(cls.grid_dir.rglob("*.yaml"))
+
+        if not grids:
+            cls.ERROR(f"no grid file in {cls.grid_dir}")
+            return []
+
+        items = [
+            (f"[{i + 1}] {grid.stem}")
+            for i, grid in enumerate(grids)
+        ]
+
+        while True:
+            answer = input(
+                f"\n{'\n'.join(items)}\n\n"
+                "Choose a grid by number(q for exit): "
+            )
+
+            answer = answer.strip()
+
+            if answer.lower() == "q":
+                return []
+
+            if answer.isdigit():
+                k = int(answer) - 1
+                if k < len(items):
+                    grid = grids[k]
+                    break
+
+            cls.ERROR(f"\nwrong selection - {answer}\n")
+
+        return [grid]
+
+    def __call__(self) -> None:
+        option = self._get_args()
+
+        grids = self._choose_grid(
+            debug=option.debug,
+            batch=option.batch,
+        )
+
+        for grid in grids:
+            self.INFO(f"GRID {Q(grid)} proceed ....")
+
+            dataset_info, spec_info, aux_info = PDACClassifier.load_grid(grid)
+            datasets = PDACClassifier.create_datasets(dataset_info)
+
+            PDACClassifier.evaluate(
+                datasets=datasets,
+                spec_info=spec_info,
+                aux_info=aux_info,
+            )
+
+            self.INFO(f"GRID {Q(grid)} proceed DONE\n")
+
+        self.INFO("bye")
+
+
+if __name__ == "__main__":
+    pdac_classify = PDACClassification()
+    pdac_classify()

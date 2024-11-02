@@ -1,6 +1,7 @@
 from langchain_community.chat_models import ChatOllama
 from langchain_core.language_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
+from langchain_core.output_parsers import BaseOutputParser
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import (ChatOpenAI, OpenAIEmbeddings)
 
@@ -46,3 +47,12 @@ class LangchainHelper:
         )
 
         return embeddings
+
+
+class LineListOutputParser(BaseOutputParser[list[str]]):
+    def parse(self, text: str) -> list[str]:
+        lines = [
+            line.strip() for line in text.strip().split("\n")
+        ]
+
+        return [line for line in lines if line]

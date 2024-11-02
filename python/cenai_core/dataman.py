@@ -1,18 +1,17 @@
-import string
-from typing import Any, Hashable
+from typing import Any, Hashable, Sequence
 
 import json
+from operator import attrgetter, itemgetter
 from pathlib import Path
-import string
+from rapidfuzz import process
 import yaml
 
 
-def clean_text(text: str) -> str:
-    text = "".join(text.split())
-    text = text.translate(
-        str.maketrans("", "", string.punctuation)
+def match_text(keyword: str, candidates: list[str]) -> str:
+    best_match = process.extractOne(
+        keyword, candidates
     )
-    return text
+    return best_match[0]
 
 
 def load_json_yaml(src: Path, **kwargs) -> dict[Hashable, Any]:
@@ -45,3 +44,34 @@ def dump_json_yaml(content: dict[str, Any], dst: Path, **kwargs) -> None:
             json.dump(content, fout, ensure_ascii=False, indent=4, **kwargs)
         else:
             yaml.dump(content, fout, sort_keys=False, **kwargs)
+
+
+def concat_texts(
+        chunks: Sequence[Any],
+        field: str,
+        seperator: str = "\n"
+) -> str:
+    if not chunks:
+        return ""
+
+    sample = chunks[0]
+
+    selector = (
+        itemgetter(field)
+        if hasattr(sample, "__getitem__") and not isinstance(sample, str) else
+        attrgetter(field) if hasattr(sample, field) else
+        None
+    )
+
+    if selector is None:
+        return ""
+
+    return seperator.join([selector(chunk) for chunk in chunks])
+
+
+def Q(text: str) -> str:
+    return f"'{text}'"
+
+
+def QQ(text: str) -> str:
+    return f"\"{text}\""

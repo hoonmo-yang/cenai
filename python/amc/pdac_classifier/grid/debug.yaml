@@ -1,0 +1,20 @@
+dataset:
+  dataset_prefix:
+  - pdac-report3
+  test_size:
+  - 0.2
+  pick:
+  - 4
+
+hparam:
+  algorithm:
+  - classifier8
+  model_name:
+  - gpt-3.5-turbo
+  topk:
+  - 10
+  num_questions:
+  - 5
+
+aux:
+  langsmith: false

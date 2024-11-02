@@ -37,3 +37,16 @@ class Timer:
     @property
     def delta(self) -> timedelta:
         return timedelta(seconds=self.seconds)
+
+    @property
+    def delta_string(self) -> str:
+        minutes, seconds = divmod(self.seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        days, hours = divmod(hours, 60)
+
+        return "".join([
+            f"{value:.2f}{unit}"
+            for value, unit in zip(
+                [days, hours, minutes, seconds], "dhms"
+            ) if value > 0
+        ])

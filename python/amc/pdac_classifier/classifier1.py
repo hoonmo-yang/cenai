@@ -31,7 +31,6 @@ class Classifier1(BaseClassifier):
     output_class_dir = BaseClassifier.output_dir / __qualname__.lower()
 
     def __init__(self,
-                 model_name: str,
                  model: BaseChatModel,
                  embeddings: Embeddings,
                  dataset_name: str,
@@ -39,7 +38,7 @@ class Classifier1(BaseClassifier):
                  random_state: int
                  ):
         super().__init__(
-            model_name, model, embeddings,
+            model, embeddings,
             dataset_name, test_size, random_state
         )
 
