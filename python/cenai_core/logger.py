@@ -1,11 +1,14 @@
 import logging
 import os
 
+from cenai_core.system import cenai_path
+
 
 class Logger:
     logger = {}
 
-    def __init__(self):
+    def __init__(self, log_name: str = ""):
+
         logger_name = self.__class__.logger_name
 
         if logger_name not in self.__class__.logger:
@@ -15,6 +18,19 @@ class Logger:
             handler = logging.StreamHandler()
             handler.setFormatter(formatter)
             logger.addHandler(handler)
+
+            if log_name:
+                log_dir = cenai_path("log") / logger_name
+                log_dir.mkdir(parents=True, exist_ok=True)
+                log_file = log_dir / f"{log_name}.log"
+
+                formatter = logging.Formatter(
+                    "%(asctime)s - %(levelname)s - %(message)s"
+                )
+
+                handler = logging.FileHandler(log_file)
+                handler.setFormatter(formatter)
+                logger.addHandler(handler)
 
             level = os.environ.get("CENAI_LOG_LEVEL", "info")
             logger.setLevel(logging.__dict__[level.upper()])

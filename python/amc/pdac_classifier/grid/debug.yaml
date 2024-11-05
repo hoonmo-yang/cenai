@@ -1,20 +1,25 @@
 dataset:
   dataset_prefix:
-  - pdac-report3
+  - pdac-report2-inc
   test_size:
   - 0.2
   pick:
-  - 4
+  - 8
 
 hparam:
   algorithm:
+  - classifier5
+  - classifier7
   - classifier8
   model_name:
-  - gpt-3.5-turbo
+  - gpt-4o
+  sections:
+  - [본문, 결론]
+  - [본문]
   topk:
   - 10
   num_questions:
   - 5
 
 aux:
-  langsmith: false
+  langsmith: true

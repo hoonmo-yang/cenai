@@ -17,7 +17,7 @@ from langchain_core.runnables import Runnable
 from langchain.schema import Document
 
 from cenai_core import cenai_path, LangchainHelper, load_dotenv, Logger, Timer
-from cenai_core.dataman import concat_texts, load_json_yaml, match_text, Q
+from cenai_core.dataman import concat_texts, dedent, load_json_yaml, match_text, Q
 from cenai_core.pandas_helper import to_json
 
 
@@ -115,7 +115,8 @@ class PDACClassifier(Logger, ABC):
     def evaluate(cls,
                  datasets: list[str],
                  spec_info: dict[str, Any],
-                 aux_info: dict[str, Any]
+                 aux_info: dict[str, Any],
+                 log_name: str
                  ) -> None:
         load_dotenv(aux_info.get("langsmith"))
 
@@ -125,6 +126,7 @@ class PDACClassifier(Logger, ABC):
             for dataset in datasets:
                 classifier = cls._get_classifier(
                     dataset=dataset,
+                    log_name=log_name,
                     **arg_dict
                 )
 
@@ -144,6 +146,7 @@ class PDACClassifier(Logger, ABC):
     @classmethod
     def _get_classifier(cls,
                         dataset: str,
+                        log_name: str,
                         **kwargs
                         ) -> Optional[PDACClassifier]:
         if "algorithm" not in kwargs:
@@ -160,6 +163,7 @@ class PDACClassifier(Logger, ABC):
 
         return Class(
             dataset=dataset,
+            log_name=log_name,
             **kwargs
         )
 
@@ -167,9 +171,11 @@ class PDACClassifier(Logger, ABC):
                  dataset: str,
                  model_name: str,
                  algorithm: str,
-                 hparam: str
+                 sections: list[str],
+                 hparam: str = "",
+                 **kwargs
                  ):
-        super().__init__()
+        super().__init__(kwargs.get("log_name", ""))
 
         self._algorithm = algorithm
         self._dataset = dataset
@@ -179,10 +185,17 @@ class PDACClassifier(Logger, ABC):
         self._model = LangchainHelper.load_model()
         self._embeddings = LangchainHelper.load_embeddings()
 
+        self._sections = self._get_sections(sections)
+
+        section_tag = "".join([
+            "b" if section == "본문" else "c"
+            for section in self._sections
+        ])
+
         if hparam:
             hparam = f"_{hparam}"
 
-        self._run_id = f"{self._dataset}_{self._algorithm}{hparam}"
+        self._run_id = f"{self._dataset}_{section_tag}_{self._algorithm}{hparam}"
         self._run_id += f"_{self._model.model_name}"
 
         self._example_df = self._load_dataset()
@@ -194,6 +207,7 @@ class PDACClassifier(Logger, ABC):
             "dataset": [self._dataset],
             "model": [self._model.model_name],
             "algorithm": [self._algorithm],
+            "sections": [",".join(self._sections)],
         })
 
     def _load_dataset(self) -> dict[str, pd.DataFrame]:
@@ -206,6 +220,15 @@ class PDACClassifier(Logger, ABC):
 
         return example_df
 
+    @staticmethod
+    def _get_sections(sections: list[str]) -> list[str]:
+        sections = [
+            section for section in sorted(
+                sections, reverse=True
+            ) if section in ["본문", "결론"]
+        ]
+        return sections if sections else ["본문", "결론"]
+
     @abstractmethod
     def classify(self) -> None:
         pass
@@ -215,44 +238,59 @@ class PDACClassifier(Logger, ABC):
                          chain: Runnable,
                          category_text: str,
                          category_labels: list[str],
+                         sections: list[str],
+                         run_id: str,
                          total: int,
                          hparam: dict[str, Any] = {},
                          others: dict[str, BaseCallbackHandler] = {}
                          ) -> pd.Series:
+
+        content = "\n".join([
+            f"{section}: {field[section]}" for section in sections
+        ])
+
         question = f"""
         *사용자 질문*: 입력된 CT 판독문이 어떤 유형에 속하는지와 그 근거는 무엇입니까?
 
         *CT 판독문 내용*:
-        본문: {field["본문"]}
-        결론: {field["결론"]}
+        {content}
         """
 
         timer = Timer()
 
-        answer = chain.invoke(
-            {
-                "question": question,
-                "category_text": category_text,
-            } | hparam
-        )
+        try:
+            answer = chain.invoke(
+                {
+                    "question": dedent(question),
+                    "category_text": category_text,
+                    "sections": "과 ".join(sections)
+                } | hparam
+            )
+        except BaseException:
+            self.ERROR(f"LLM({self.model.model_name}) internal error")
+            category = "Not available"
+            reason = f"LLM({self.model.model_name}) internal error"
+        else:
+            category = answer.category
+            reason = answer.reason
 
         timer.lap()
 
         entry = pd.Series({
-            "run_id": self.run_id,
-            "본문": field["본문"],
-            "결론": field["결론"],
+            "run_id": run_id,
+        } | {
+            section: field[section]
+            for section in sections
+        } | {
             "정답": field["유형"],
-            "예측": match_text(answer.category, category_labels),
-            "원예측": answer.category,
-            "근거": answer.reason,
+            "예측": match_text(category, category_labels),
+            "원예측": category,
+            "근거": reason,
             "소요시간": timer.seconds,
-        })
-
-        entry = pd.Series({
+        } | {
             name: handler()
             for name, handler in others.items()
-        }).combine_first(entry)
+        })
 
         self.INFO(
             f"TIME(sec):{entry['소요시간']:.2f}   "
@@ -261,7 +299,7 @@ class PDACClassifier(Logger, ABC):
         )
 
         self.INFO(
-            f"RUN {Q(self.run_id)} CLASSIFY "
+            f"RUN {Q(run_id)} CLASSIFY "
             f"[{field.name + 1:02d}/{total:02d}] proceed DONE"
         )
 
@@ -299,16 +337,27 @@ class PDACClassifier(Logger, ABC):
         example_df = self._example_df["train"].reset_index(drop=True)
 
         examples = example_df.apply(
-            lambda field: (
-                f"*예제 {field.name + 1}. CT 판독문*:\n"
-                f"**유형**: {field['유형']}\n"
-                f"**본문**: {field['본문']}\n"
-                f"**결론**: {field['결론']}"
-            ),
+            self._stringfy_example_foreach,
+            sections=self.sections,
             axis=1
         )
 
         return "\n\n".join(examples)
+
+    @staticmethod
+    def _stringfy_example_foreach(example: pd.Series,
+                                  sections: list[str]
+                                  ) -> str:
+        section_text = "\n".join([
+            f"**{section}**: {example[section]}"
+            for section in sections
+        ])
+
+        return (
+            f"*예제 {example.name + 1}. CT 판독문*:\n"
+            f"**유형**: {example['유형']}\n"
+            f"{section_text}"
+        )
 
     def stringfy_categories(self) -> str:
         prefix = self.dataset.split("_")[0]
@@ -317,24 +366,7 @@ class PDACClassifier(Logger, ABC):
         return text
 
     def get_category_labels(self) -> list[str]:
-        return self._example_df["train"]["유형"].unique().tolist()
-
-    def get_sample_question(self,
-                            tag: str = "train",
-                            k: int = 0
-                            ) -> str:
-        example_df = self._example_df[tag]
-        body, conclusion = example_df.loc[k, ["본문", "결론"]]
-
-        question = f"""
-            *사용자 질문*: 입력된 CT 판독문이 어떤 유형에 속하는지와 그 근거는 무엇입니까?
-
-            *CT 판독문 내용*:
-            본문: {body}
-            결론: {conclusion}
-            """
-
-        return question
+        return self._example_df["train"]["유형"].unique().tolist() + ["Not available"]
 
     @staticmethod
     def concat_documents(documents: list[Document]) -> str:
@@ -364,3 +396,7 @@ class PDACClassifier(Logger, ABC):
     @property
     def run_id(self) -> str:
         return self._run_id
+
+    @property
+    def sections(self) -> list[str]:
+        return self._sections

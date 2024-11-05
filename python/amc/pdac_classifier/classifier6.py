@@ -1,19 +1,17 @@
 from operator import itemgetter
 
 from langchain_chroma import Chroma
+from langchain_community.retrievers import BM25Retriever
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import Runnable, RunnablePassthrough
-
-from langchain.retrievers import (
-    BM25Retriever, EnsembleRetriever, ContextualCompressionRetriever
-)
-
+from langchain.retrievers import EnsembleRetriever
+from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import LLMChainExtractor
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import Q
+from cenai_core.dataman import dedent, Q
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
@@ -23,6 +21,7 @@ class Classifier6(PDACClassifier):
                  dataset: str,
                  model_name: str,
                  algorithm: str,
+                 sections: list[str],
                  topk: int,
                  **kwargs
                  ):
@@ -30,7 +29,9 @@ class Classifier6(PDACClassifier):
             dataset=dataset,
             model_name=model_name,
             algorithm=algorithm,
+            sections=sections,
             hparam=f"k{topk:02d}",
+            **kwargs
         )
 
         self.INFO(f"RUN {Q(self.run_id)} prepared ....")
@@ -116,8 +117,8 @@ class Classifier6(PDACClassifier):
         """
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("human", human_prompt),
+            ("system", dedent(system_prompt)),
+            ("human", dedent(human_prompt)),
         ])
 
         chain = (
@@ -147,6 +148,8 @@ class Classifier6(PDACClassifier):
             chain=self._classifier_chain,
             category_text=category_text,
             category_labels=category_labels,
+            sections=self.sections,
+            run_id=self.run_id,
             total=example_df.shape[0],
             axis=1,
         )

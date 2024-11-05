@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from datetime import datetime
 from pathlib import Path
 
 from cenai_core import Logger
@@ -10,7 +11,7 @@ from amc.pdac_classifier import PDACClassifier
 
 class PDACClassification(Logger):
     grid_dir = Path("grid")
-    logger_name = "amc.pdac_classifier"
+    logger_name = "amc.pdac_classification"
     debug_grid = "debug"
 
     def __init__(self):
@@ -96,13 +97,18 @@ class PDACClassification(Logger):
         for grid in grids:
             self.INFO(f"GRID {Q(grid)} proceed ....")
 
+            time = datetime.now().strftime("%Y-%m-%dT%H:%M")
+            log_name = f"{grid.stem}-{time}"
+
             dataset_info, spec_info, aux_info = PDACClassifier.load_grid(grid)
             datasets = PDACClassifier.create_datasets(dataset_info)
+
 
             PDACClassifier.evaluate(
                 datasets=datasets,
                 spec_info=spec_info,
                 aux_info=aux_info,
+                log_name=log_name,
             )
 
             self.INFO(f"GRID {Q(grid)} proceed DONE\n")
@@ -111,5 +117,8 @@ class PDACClassification(Logger):
 
 
 if __name__ == "__main__":
-    pdac_classify = PDACClassification()
-    pdac_classify()
+    try:
+        pdac_classify = PDACClassification()
+        pdac_classify()
+    except Exception as e:
+        PDACClassification.ERROR(e)

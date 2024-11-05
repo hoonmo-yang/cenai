@@ -1,19 +1,17 @@
 from operator import attrgetter, itemgetter
+
 from langchain_chroma import Chroma
+from langchain_community.retrievers import BM25Retriever
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.retrievers import BaseRetriever
-
-from langchain_core.runnables import (
-    Runnable, RunnableLambda, RunnablePassthrough
-)
-
-from langchain.retrievers import BM25Retriever, EnsembleRetriever
+from langchain_core.runnables import Runnable, RunnablePassthrough
+from langchain.retrievers import EnsembleRetriever
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import Q
+from cenai_core.dataman import dedent, Q
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
@@ -37,6 +35,7 @@ class Classifier8(PDACClassifier):
                  dataset: str,
                  model_name: str,
                  algorithm: str,
+                 sections: list[str],
                  topk: int,
                  num_questions: int,
                  **kwargs
@@ -45,7 +44,9 @@ class Classifier8(PDACClassifier):
             dataset=dataset,
             model_name=model_name,
             algorithm=algorithm,
+            sections=sections,
             hparam=f"k{topk:02d}_q{num_questions:02d}",
+            **kwargs
         )
 
         self.INFO(f"RUN {Q(self.run_id)} prepared ....")
@@ -114,9 +115,9 @@ class Classifier8(PDACClassifier):
         
         더 효과적으로 검색하기 위한 목적으로 작성되어야 합니다.
 
-        사용자의 질문에는 예측해야 할 CT 판독문 내용이 포함되어 있으며, 이 판독문은 '본문'과 '결론'으로 구성됩니다.
+        사용자의 질문에는 예측해야 할 CT 판독문 내용이 포함되어 있으며, 이 판독문은 {sections}으로 구성됩니다.
 
-        본문과 결론의 정보를 참고하여, CT 판독문의 유형 예측에 도움이 될 질문을 다양한 관점에서 만들어 주십시오.
+        {sections}의 정보를 참고하여, CT 판독문의 유형 예측에 도움이 될 질문을 다양한 관점에서 만들어 주십시오.
 
         각 질문은 개행 문자(\n)로 구분되어 한 줄씩 나열되도록 작성하십시오. 예시: foo\nbar\nbaz\n
 
@@ -127,16 +128,16 @@ class Classifier8(PDACClassifier):
         """
 
         question_prompt = ChatPromptTemplate.from_messages(
-            ("human", prompt),
+            ("human", dedent(prompt)),
         )
 
-        mixup_prompt = PromptTemplate.from_template(
-            """
-            {multiquery_question}
+        prompt = """
+        {multiquery_question}
 
-            {original_question}
-            """
-        )
+        {original_question}
+        """
+
+        mixup_prompt = PromptTemplate.from_template(dedent(prompt))
 
         multiquery_retriever = (
             {
@@ -194,8 +195,8 @@ class Classifier8(PDACClassifier):
         """
 
         prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("human", human_prompt),
+            ("system", dedent(system_prompt)),
+            ("human", dedent(human_prompt)),
         ])
 
         chain = (
@@ -229,6 +230,8 @@ class Classifier8(PDACClassifier):
             chain=self._classifier_chain,
             category_text=category_text,
             category_labels=category_labels,
+            sections=self.sections,
+            run_id=self.run_id,
             hparam=hparam,
             others={
                 "생성질문": self._multiquery_question_handler,

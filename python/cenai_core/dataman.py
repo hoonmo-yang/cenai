@@ -4,6 +4,7 @@ import json
 from operator import attrgetter, itemgetter
 from pathlib import Path
 from rapidfuzz import process
+import textwrap
 import yaml
 
 
@@ -75,3 +76,7 @@ def Q(text: str) -> str:
 
 def QQ(text: str) -> str:
     return f"\"{text}\""
+
+
+def dedent(source: str) -> str:
+    return textwrap.dedent(source).strip()

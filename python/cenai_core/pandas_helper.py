@@ -1,3 +1,4 @@
+from io import StringIO
 import json
 import pandas as pd
 from pathlib import Path
@@ -17,7 +18,7 @@ def from_json(source: Path, **kwargs) -> list[pd.DataFrame]:
         data = json.load(fin)
 
     dataframes = [
-        pd.read_json(serial, orient="split", **kwargs)
+        pd.read_json(StringIO(serial), orient="split", **kwargs)
         for serial in data
     ]
 
