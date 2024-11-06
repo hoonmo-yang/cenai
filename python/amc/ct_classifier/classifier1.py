@@ -1,36 +1,16 @@
 import pandas as pd
-from pydantic import BaseModel, Field
-from sklearn.model_selection import train_test_split
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from cenai_core import cenai_path, LangchainHelper, load_dotenv
-from cenai_core import INFO
+from amc.ct_classifier.classifier import PDACClassifier
+from amc.ct_classifier.classifier import Classification, Feature, Report
 
 
-class Report(BaseModel):
-    body: str = Field(description="CT 판독문의 본문입니다.")
-    conclusion: str = Field(description="CT 판독문의 결론입니다.")
-    why: str = Field(description="CT 판독문의 유형에 대한 근거입니다.")
-
-
-class Feature(BaseModel):
-    body: str = Field(description="CT 판독문의 본문입니다.")
-    conclusion: str = Field(description="CT 판독문의 결론입니다.")
-    group: str = Field(description="CT 판독문의 유형입니다.")
-    why: str = Field(description="CT 판독문의 유형에 대한 근거입니다.")
-
-
-class Classification(BaseModel):
-    group: str = Field()
-    why: str = Field()
-
-
-class Classifier:
-    output_dir = cenai_path("output") / "amc"
+class Classifier1(PDACClassifier):
+    output_class_dir = PDACClassifier.output_dir / __qualname__.lower()
 
     def __init__(self,
                  model_name: str,
@@ -40,86 +20,12 @@ class Classifier:
                  test_size: float,
                  random_state: int
                  ):
-        self._model = model
-        self._embeddings = embeddings
-
-        test = int(test_size * 10)
-        train = 10 - test
-        suffix = f"{train}-{test}_{random_state:02d}"
-        self._dataset_body = f"{dataset_name}_{suffix}"
-        self._body = f"{model_name}_{dataset_name}_{suffix}"
-
-        self._example_df = self._load_dataset()
-
-        self._feature_df = self._extract_features()
-
-        self._experiment_df = pd.DataFrame(
-            columns=("본문", "결론", "정답", "예측", "근거",)
+        super().__init__(
+            model_name, model, embeddings,
+            dataset_name, test_size, random_state
         )
 
-    @classmethod
-    def create_dataset(cls,
-                       dataset_name: str,
-                       test_sizes: list[float],
-                       num_tries: int
-                       ) -> None:
-        dataset_dir = cls.output_dir / "dataset"
-        if dataset_dir.is_dir():
-            return
-
-        dataset_dir.mkdir(parents=True, exist_ok=True)
-
-        json_file = cenai_path("data") / f"{dataset_name}.json"
-        source_df = pd.read_json(json_file)
-        target_df = {}
-
-        for test_size in test_sizes:
-            for k in range(num_tries):
-                target_df["train"] = pd.DataFrame()
-                target_df["test"] = pd.DataFrame()
-
-                for _, dataframe in source_df.groupby("유형"):
-                    train_df, test_df = train_test_split(
-                        dataframe,
-                        test_size=test_size,
-                        random_state=k,
-                    )
-
-                    target_df["train"] = pd.concat(
-                        [target_df["train"], train_df], axis=0
-                    )
-
-                    target_df["test"] = pd.concat(
-                        [target_df["test"], test_df], axis=0
-                    )
-
-                test = int(test_size * 10)
-                train = 10 - test
-                suffix = f"{train}-{test}_{k:02d}"
-
-                for tag in ["train", "test"]:
-                    target_dir = dataset_dir / tag
-                    target_dir.mkdir(parents=True, exist_ok=True)
-                    target_json = target_dir / f"{dataset_name}_{suffix}.json"
-                    target_df[tag].to_json(target_json)
-
-    @property
-    def model(self) -> BaseChatModel:
-        return self._model
-
-    @property
-    def embeddings(self) -> Embeddings:
-        return self._embeddings
-
-    def _load_dataset(self) -> dict[str, pd.DataFrame]:
-        dataset_dir = self.output_dir / "dataset"
-
-        example_df = {}
-        for tag in ["train", "test"]:
-            json_file = dataset_dir / tag / f"{self._dataset_body}.json"
-            example_df[tag] = pd.read_json(json_file)
-
-        return example_df
+        self._feature_df = self._extract_features()
 
     def _extract_features(self) -> pd.DataFrame:
         feature_df = self._retrieve_cache()
@@ -167,15 +73,15 @@ class Classifier:
         others = feature_df[
             feature_df["유형"] != feature["유형"]
         ].apply(
-            lambda row: f"""
-            ### {row.name + 1}번째 유형:
-            - **본문**: {row['본문']}
-            - **결론**: {row['결론']}
-            - **유형**: {row['유형']}
-            - **근거**: {row['근거']}
+            lambda field: f"""
+            ### {field.name + 1}번째 유형:
+            - **본문**: {field['본문']}
+            - **결론**: {field['결론']}
+            - **유형**: {field['유형']}
+            - **근거**: {field['근거']}
             """,
             axis=1,
-        ).tolist()
+        )
 
         other_parts = "\n\n".join(others)
 
@@ -232,13 +138,13 @@ class Classifier:
         })
 
     def _save_cache(self, source_df: pd.DataFrame) -> None:
-        feature_dir = self.output_dir / "feature"
+        feature_dir = self.output_class_dir / "feature"
         feature_dir.mkdir(parents=True, exist_ok=True)
         target_json = feature_dir / f"{self._body}.json"
         source_df.to_json(target_json)
 
     def _retrieve_cache(self) -> pd.DataFrame:
-        feature_dir = self.output_dir / "feature"
+        feature_dir = self.output_class_dir / "feature"
         source_json = feature_dir / f"{self._body}.json"
 
         return (
@@ -251,9 +157,9 @@ class Classifier:
                          example_df: pd.DataFrame
                          ) -> tuple[str, str, str]:
         examples = example_df.reset_index(drop=True).apply(
-            lambda row: (f"### 예제 {row.name + 1}:\n"
-                         f"**body**: {row['본문']}\n"
-                         f"**conclusion**: \n{row['결론']}\n\n"),
+            lambda field: (f"### 예제 {field.name + 1}:\n"
+                          f"**body**: {field['본문']}\n"
+                          f"**conclusion**: \n{field['결론']}\n\n"),
             axis=1,
         )
 
@@ -307,13 +213,13 @@ class Classifier:
 
     def classify(self) -> None:
         examples = self._feature_df.apply(
-            lambda row: HumanMessage(
+            lambda field: HumanMessage(
                 content=f"""
-                ### {row.name + 1}번 예제:
-                - **본문**: {row['본문']}
-                - **결론**: {row['결론']}
-                - **유형**: {row['유형']}
-                - **근거**: 이 판독문은 {row['유형']}에 해당하며, 그 이유는 {row['근거']}
+                ### {field.name + 1}번 예제:
+                - **본문**: {field['본문']}
+                - **결론**: {field['결론']}
+                - **유형**: {field['유형']}
+                - **근거**: 이 판독문은 {field['유형']}에 해당하며, 그 이유는 {field['근거']}
                 """
             ),
             axis=1
@@ -359,7 +265,7 @@ class Classifier:
         self._experiment_df = self._experiment_df.reset_index(drop=True)
 
     def _classify(self,
-                  row: pd.Series,
+                  field: pd.Series,
                   prompt: ChatPromptTemplate,
                   examples: list[HumanMessage]
                   ) -> pd.Series:
@@ -367,21 +273,21 @@ class Classifier:
         chain = prompt | self.model.with_structured_output(Classification)
 
         answer = chain.invoke({
-            "본문": row["본문"],
-            "결론": row["결론"],
+            "본문": field["본문"],
+            "결론": field["결론"],
             "examples": examples,
         })
 
         return pd.Series({
-            "본문": row["본문"],
-            "결론": row["결론"],
-            "정답": row["유형"].strip().lower(),
+            "본문": field["본문"],
+            "결론": field["결론"],
+            "정답": field["유형"].strip().lower(),
             "예측": answer.group.strip().lower(),
             "근거": answer.why,
         })
 
     def create_report(self) -> None:
-        report_dir = self.output_dir / "report"
+        report_dir = self.output_class_dir / "report"
         report_dir.mkdir(parents=True, exist_ok=True)
         report_file = report_dir / f"{self._body}.txt"
 
@@ -394,81 +300,56 @@ class Classifier:
         ]
 
         with report_file.open("wt", encoding="utf-8") as fout:
-            fout.write("## FEATURES FOR GROUPS\n")
-
-            self._feature_df.apply(
-                lambda row: fout.write(
-                    f"#### 샘플 {row.name + 1}:\n"
-                    f"-**유형**: {row['유형']}\n"
-                    f"-**본문**:\n{row['본문']}\n"
-                    f"-**결론**:\n{row['결론']}\n"
-                    f"-**근거**:\n{row['근거']}\n\n"
-                ),
-                axis=1,
-            )
-
             fout.write(
                 "\n## EXPERIMENT RESULT\n\n"
                 f"HIT RATIO:{hit_ratio}% HIT:{hit} TOTAL:{total}\n\n"
             )
 
             deviate_df.apply(
-                lambda row: fout.write(
-                    f"#### 테스트 {row.name + 1}:\n"
-                    f"-**정답**: {row['정답']}\n"
-                    f"-**예측**: {row['예측']}\n"
-                    f"-**본문**:\n{row['본문']}\n"
-                    f"-**결론**:\n{row['결론']}\n"
-                    f"-**근거**:\n{row['근거']}\n\n"
+                lambda field: fout.write(
+                    f"#### 테스트 {field.name + 1}:\n"
+                    f"-**정답**: {field['정답']}\n"
+                    f"-**예측**: {field['예측']}\n"
+                    f"-**근거**:\n{field['근거']}\n"
+                    f"-**본문**:\n{field['본문']}\n"
+                    f"-**결론**:\n{field['결론']}\n\n"
+                ),
+                axis=1,
+            )
+
+            fout.write("\n\n## FEATURES FOR GROUPS\n")
+
+            self._feature_df.apply(
+                lambda field: fout.write(
+                    f"#### 샘플 {field.name + 1}:\n"
+                    f"-**유형**: {field['유형']}\n"
+                    f"-**본문**:\n{field['본문']}\n"
+                    f"-**결론**:\n{field['결론']}\n"
+                    f"-**근거**:\n{field['근거']}\n\n"
                 ),
                 axis=1,
             )
 
 
 def main() -> None:
-    dataset_name = "ct_report"
-    test_sizes = [0.2, 0.4]
+    dataset_stem = "pdac-report"
+    test_sizes = [0.2]
     num_tries = 4
+    topks = [0]
 
-    model_name = "llama3.1:latest"
-    model_name = "llama3.1:70b"
-    model_name = "gpt-3.5-turbo"
-    model_name = "gpt-4o-mini"
-    model_name = "gpt-4o"
+    model_names = ["gpt-4o", "gpt-3.5-turbo"]
 
-    load_dotenv()
-
-    LangchainHelper.bind_model(model_name)
-    model = LangchainHelper.load_model()
-    embeddings = LangchainHelper.load_embeddings()
-
-    Classifier.create_dataset(
-        dataset_name=dataset_name,
+    dataset_names = PDACClassifier.create_dataset(
+        dataset_stem=dataset_stem,
         test_sizes=test_sizes,
         num_tries=num_tries,
     )
 
-    test_sizes = [0.2]
-    num_tries = 4
-
-    for test_size in test_sizes:
-        for k in range(num_tries):
-            INFO(
-                f"\ndataset:{dataset_name} seed:{k}, test_size:{test_size}"
-            )
-
-            classifier = Classifier(
-                model_name=model_name,
-                model=model,
-                embeddings=embeddings,
-                dataset_name=dataset_name,
-                test_size=test_size,
-                random_state=k,
-            )
-
-            classifier.classify()
-            classifier.create_report()
-
-
-if __name__ == "__main__":
-    main()
+    PDACClassifier.evaluate(
+        model_names=model_names,
+        dataset_names=dataset_names,
+        test_sizes=test_sizes,
+        num_tries=num_tries,
+        topks=topks,
+        classifier_class=Classifier1,
+    )
