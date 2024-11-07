@@ -1,0 +1,33 @@
+title: amc-poc-2024-11-07
+tags:
+- pdac-classifier
+- amc-poc
+
+dataset:
+  dataset_prefix:
+  - pdac-report3
+  - pdac-report2-inc
+  test_size:
+  - 0.2
+  pick:
+  - 8
+
+directive:
+  langsmith: true
+  head:
+
+hparam:
+  algorithm:
+  - classfier5
+  - classfier7
+  - classfier8
+  model_name:
+  - gpt-4o
+  - gpt-3.5-turbo
+  sections:
+  - [본문, 결론]
+  - [본문]
+  topk:
+  - 10
+  num_questions:
+  - 5

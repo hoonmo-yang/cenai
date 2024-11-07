@@ -97,15 +97,34 @@ class PDACClassification(Logger):
         for grid in grids:
             self.INFO(f"GRID {Q(grid)} proceed ....")
 
+            PDACClassifier.execute(grid)
+
+
+
+
+
+            config = PDACClassifier.load_grid(grid)
+
+            PDACClassifier.set_
+            
+            
+            
+            config.title
+
+
+
+
+
+
+            datasets = PDACClassifier.create_datasets(config.dataset)
+
             time = datetime.now().strftime("%Y-%m-%dT%H:%M")
-            log_name = f"{grid.stem}-{time}"
-
-            dataset_info, spec_info, aux_info = PDACClassifier.load_grid(grid)
-            datasets = PDACClassifier.create_datasets(dataset_info)
-
-
+            log_name = f"{config.title}-{time}"
             PDACClassifier.evaluate(
                 datasets=datasets,
+
+
+
                 spec_info=spec_info,
                 aux_info=aux_info,
                 log_name=log_name,

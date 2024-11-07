@@ -80,3 +80,8 @@ def QQ(text: str) -> str:
 
 def dedent(source: str) -> str:
     return textwrap.dedent(source).strip()
+
+
+class Struct:
+    def __init__(self, data: dict[str, Any]):
+        self.__dict__.update(data)

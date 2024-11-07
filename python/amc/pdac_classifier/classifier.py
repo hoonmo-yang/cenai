@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Optional, Union
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 import importlib
 from itertools import product
 import pandas as pd
@@ -17,7 +18,11 @@ from langchain_core.runnables import Runnable
 from langchain.schema import Document
 
 from cenai_core import cenai_path, LangchainHelper, load_dotenv, Logger, Timer
-from cenai_core.dataman import concat_texts, dedent, load_json_yaml, match_text, Q
+
+from cenai_core.dataman import (
+    concat_texts, dedent, load_json_yaml, match_text, Q, Struct
+)
+
 from cenai_core.pandas_helper import to_json
 
 
@@ -33,42 +38,50 @@ class PDACClassifyResult(BaseModel):
 
 class PDACClassifier(Logger, ABC):
     logger_name = "amc.pdac_classifier"
-
-    output_dir = cenai_path("output") / "amc"
     data_dir = cenai_path("data") / "amc"
 
     @classmethod
-    def load_grid(cls,
-                  grid: Path
-                  ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        deserialized = load_json_yaml(grid)
-        return (
-            deserialized.get("dataset"),
-            deserialized.get("hparam"),
-            deserialized.get("aux"),
+    def execute(cls, grid: Path) -> None:
+        config = cls._load_grid(grid)
+        output_dir = cenai_path("output") / "amc" / config.title
+        datasets = cls._create_datasets(output_dir)
+
+        time = datetime.now().strftime("%Y-%m-%dT%H:%M")
+        log_name = f"{config.title}-{time}"
+
+        cls.evaluate(
+            datasets=datasets,
+            log_name=log_name,
         )
 
     @classmethod
-    def create_datasets(cls, dataset_info: dict[str,Any]) -> list[str]:
-        dataset_dir = cls.output_dir / "dataset"
+    def _load_grid(cls, grid: Path) -> Struct:
+        deserialized = load_json_yaml(grid)
+        return Struct(deserialized)
+
+    @classmethod
+    def _create_datasets(cls,
+                         output_dir: Path,
+                         config: Struct
+                         ) -> list[str]:
+        dataset_dir = output_dir / "dataset"
         dataset_dir.mkdir(parents=True, exist_ok=True)
 
         datasets = []
-
-        for values in product(*dataset_info.values()):
-            arg_dict = dict(zip(dataset_info.keys(), values))
-            datasets.extend(cls._create_datasets(dataset_dir, **arg_dict))
+        dataset_param = config.dataset
+        for values in product(*dataset_param.values()):
+            arg_dict = dict(zip(dataset_param.keys(), values))
+            datasets.extend(cls._split_datasets(dataset_dir, **arg_dict))
 
         return datasets
 
     @classmethod
-    def _create_datasets(cls,
-                         dataset_dir: Path,
-                         dataset_prefix: str,
-                         test_size: float,
-                         pick: Union[int,list[int]]
-                         ) -> list[str]:
-
+    def _split_datasets(cls,
+                        dataset_dir: Path,
+                        dataset_prefix: str,
+                        test_size: float,
+                        pick: Union[int,list[int]]
+                        ) -> list[str]:
         json_file = cls.data_dir / f"{dataset_prefix}.json"
         source_df = pd.read_json(json_file)
 
