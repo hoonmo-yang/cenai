@@ -26,21 +26,21 @@ class PDACClassifier3(PDACClassifier):
             sections=sections,
         )
 
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] prepared ....")
+        self.INFO(f"{self.header} prepared ....")
 
         self._topk = topk
         self._metadata_df.loc[0, "topk"] = self._topk
 
         retriever = self._create_retriever()
-        self._classifier_chain = self._create_classifier_chain(retriever)
+        self.classifier_chain = self._create_classifier_chain(retriever)
 
         self.INFO(f"{Q(self.run_id)}[{Q(self.batch_id)}] prepared DONE")
 
     def _create_retriever(self) -> BaseRetriever:
         self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared ....")
 
-        example_text = self.stringfy_examples()
-        documents = [Document(page_content=example_text)]
+        trainset_text = self.stringfy_trainsets()
+        documents = [Document(page_content=trainset_text)]
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
@@ -59,15 +59,13 @@ class PDACClassifier3(PDACClassifier):
             search_kwargs={"k": self._topk},
         )
 
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared DONE")
+        self.INFO(f"{self.header} prepared DONE")
         return retriever
 
     def _create_classifier_chain(self,
                                  retriever: BaseRetriever
                                  ) -> Runnable:
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared ...."
-        )
+        self.INFO(f"{self.header} CHAIN prepared ....")
 
         system_prompt = """
         당신은 췌장암 환자의 CT 판독문이 어떤 유형에 속하는지 예측하고,
@@ -109,9 +107,7 @@ class PDACClassifier3(PDACClassifier):
             self.model.with_structured_output(PDACClassifyResult)
         )
 
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared DONE"
-        )
+        self.INFO(f"{self.header} CHAIN prepared DONE")
         return chain
 
     def classify_pre(self) -> GridChainContext:

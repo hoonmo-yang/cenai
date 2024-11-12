@@ -45,7 +45,7 @@ class PDACClassifier8(PDACClassifier):
             sections=sections,
         )
 
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] prepared ....")
+        self.INFO(f"{self.header} prepared ....")
 
         self._topk = topk
         self._num_questions = num_questions
@@ -59,15 +59,15 @@ class PDACClassifier8(PDACClassifier):
         retriever = self._create_retriever()
         multiquery_retriever = self._create_multiquery_retriever(retriever)
 
-        self._classifier_chain = self._create_classifier_chain(multiquery_retriever)
+        self.classifier_chain = self._create_classifier_chain(multiquery_retriever)
 
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] prepared DONE")
+        self.INFO(f"{self.header} prepared DONE")
 
     def _create_retriever(self) -> BaseRetriever:
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared ....")
+        self.INFO(f"{self.header} RAG prepared ....")
 
-        example_text = self.stringfy_examples()
-        documents = [Document(page_content=example_text)]
+        trainset_text = self.stringfy_trainsets()
+        documents = [Document(page_content=trainset_text)]
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
@@ -96,16 +96,13 @@ class PDACClassifier8(PDACClassifier):
             weights=[0.7, 0.3],
         )
 
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared DONE")
+        self.INFO(f"{self.header} RAG prepared DONE")
         return retriever
 
     def _create_multiquery_retriever(self,
                                      retriever: BaseRetriever
                                      ) -> Runnable:
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] "
-            "MULTI-QUERY RETRIEVER prepared ...."
-        )
+        self.INFO(f"{self.header} MULTI-QUERY RETRIEVER prepared ....")
 
         prompt = """
         사용자가 제시한 원 질문을 바탕으로, 췌장암 환자의 CT 판독문 유형을 예측하는 데 유용한
@@ -155,18 +152,13 @@ class PDACClassifier8(PDACClassifier):
             retriever
         )
 
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] "
-            "MULTI-QUERY RETRIEVER prepared DONE"
-        )
+        self.INFO(f"{self.header} MULTI-QUERY RETRIEVER prepared DONE")
         return multiquery_retriever
 
     def _create_classifier_chain(self,
                                  retriever: BaseRetriever
                                  ) -> Runnable:
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared ...."
-        )
+        self.INFO(f"{self.header} CHAIN prepared ....")
 
         system_prompt = """
         당신은 췌장암 환자의 CT 판독문이 특정 유형에 속하는지 예측하고,
@@ -214,9 +206,7 @@ class PDACClassifier8(PDACClassifier):
             self.model.with_structured_output(PDACClassifyResult)
         )
 
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared DONE"
-        )
+        self.INFO(f"{self.header} CHAIN prepared DONE")
         return chain
 
     def classify_pre(self) -> GridChainContext:

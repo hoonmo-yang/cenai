@@ -80,12 +80,9 @@ class Struct:
         self.__dict__.update(data)
 
 
-
 def to_camel(literal: str) -> str:
-    words = literal.split("_")
-
     return "".join([
-        word[1:].upper() if word[0] == "^" else word.capitalize()
+        word[1:-1].upper() if word[0] == "*" else word.capitalize()
         for word in literal.split("_")
     ])
 

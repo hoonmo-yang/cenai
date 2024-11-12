@@ -3,18 +3,18 @@ import argparse
 from pathlib import Path
 
 from cenai_core import Logger
-from cenai_core.grid import GridBatchRunner
+from cenai_core.dataman import Q
+from cenai_core.grid import GridEvaluator
 
 
 class PDACClassification(Logger):
     grid_dir = Path("grid")
     logger_name = "cenai.system"
-    debug_grid = "debug"
 
     def __init__(self):
         super().__init__()
 
-        self._runner = GridBatchRunner()
+        self._evaluator = GridEvaluator()
 
     @classmethod
     def _get_args(cls) -> argparse.Namespace:
@@ -23,17 +23,9 @@ class PDACClassification(Logger):
         )
 
         parser.add_argument(
-            "-d",
-            "--debug",
-            action="store_true",
-            default=False,
-            help="debug mode"
-        )
-
-        parser.add_argument(
             "-b",
             "--batch",
-            nargs="*",
+            nargs="+",
             default=[],
             help="batch mode"
         )
@@ -41,27 +33,21 @@ class PDACClassification(Logger):
         return parser.parse_args()
 
     @classmethod
-    def _choose_grid(cls,
-                     debug: bool,
-                     batch: list[Path]
-                     ) -> list[Path]:
-        if debug:
-            return [cls.grid_dir / f"{cls.debug_grid}.yaml"]
-
+    def _choose_grid_yamls(cls, batch: list[Path]) -> list[Path]:
         if batch:
             return [
-                cls.grid_dir / f"{grid}.yaml" for grid in batch
+                cls.grid_dir / grid_yaml for grid_yaml in batch
             ]
 
-        grids = list(cls.grid_dir.rglob("*.yaml"))
+        grid_yamls = list(cls.grid_dir.rglob("*.yaml"))
 
-        if not grids:
-            cls.ERROR(f"no grid file in {cls.grid_dir}")
+        if not grid_yamls:
+            cls.ERROR(f"no grid file in {Q(cls.grid_dir)}")
             return []
 
         items = [
-            (f"[{i + 1}] {grid.stem}")
-            for i, grid in enumerate(grids)
+            (f"[{i + 1}] {grid_yaml.stem}")
+            for i, grid_yaml in enumerate(grid_yamls)
         ]
 
         while True:
@@ -78,23 +64,26 @@ class PDACClassification(Logger):
             if answer.isdigit():
                 k = int(answer) - 1
                 if k < len(items):
-                    grid = grids[k]
+                    grid_yaml = grid_yamls[k]
                     break
 
-            cls.ERROR(f"\nwrong selection - {answer}\n")
+            cls.ERROR(f"\nwrong selection - {Q(answer)}\n")
 
-        return [grid]
+        return [grid_yaml]
 
     def __call__(self) -> None:
         option = self._get_args()
 
-        grids = self._choose_grid(
-            debug=option.debug,
+        grid_yamls = self._choose_grid_yamls(
             batch=option.batch,
         )
 
-        if grids:
-            self._runner(grids)
+        for grid_yaml in grid_yamls:
+            self.INFO(f"{Q(grid_yaml)} proceed ....")
+
+            self._evaluator(grid_yaml)
+
+            self.INFO(f"{Q(grid_yaml)} proceed DONE")
 
         self.INFO("bye")
 

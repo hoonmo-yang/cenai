@@ -17,7 +17,7 @@ dataset:
 
 parameter:
   module:
-  - ^pdac-classifier5
+  - "*pdac*-classifier7"
   model:
   - gpt-3.5-turbo
   sections:
@@ -30,3 +30,5 @@ parameter:
 directive:
   langsmith: true
   head: 1
+  save: false
+  replicate: false

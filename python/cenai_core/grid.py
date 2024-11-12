@@ -22,6 +22,26 @@ from cenai_core.logger import Logger
 from cenai_core.system import cenai_path, load_dotenv
 
 
+class Grid(BaseModel):
+    name: str = Field(description="Grid name")
+
+    date: str = Field(description="date of grid")
+
+    index: int = Field(
+        description="Chronological order per grid",
+        ge=0,)
+
+    prefix_dir: Path = Field(description="prefix dir of grid")
+
+    @property
+    def grid_id(self) -> str:
+        return f"{self.name}_{self.date}_{self.index:03d}"
+
+    @property
+    def grid_dir(self) -> Path:
+        return self.prefix_dir / self.name
+
+
 class GridChainContext(BaseModel):
     parameter: dict[str, Any] = Field(
         default={},
@@ -35,87 +55,18 @@ class GridChainContext(BaseModel):
         arbitrary_types_allowed = True
 
 
-class GridBatch(BaseModel):
-    name: str = Field(description="Batch name")
-
-    index: int = Field(
-        description="Chronological order per batch",
-        ge=0,)
-
-    prefix_dir: Path = Field(description="prefix dir of batch")
-
-    date: str = Field(
-        default_factory=lambda: datetime.now().strftime("%Y-%m-%d"),
-    )
-
-    @property
-    def batch_id(self) -> str:
-        return f"{self.name}_{self.date}_{self.index:03d}"
-
-    @property
-    def batch_dir(self) -> Path:
-        return self.prefix_dir / self.name
-
-
-class GridBatchRunner(Logger):
+class GridRunner(Logger):
     logger_name = "cenai.system"
 
     def __init__(self,
-                 module_paths: list[Union[Path,str]] = [],
-                 **kwargs
+                 module_paths: list[Union[Path,str]] = []
                  ):
         super().__init__()
 
         self._prefix_dir = cenai_path("gridout")
-        self.P_GRID = re.compile(r"\w+_\d{4}-\d{2}-\d{2}_(\d+)")
-
         self._add_module_paths(module_paths)
 
-
-    def __call__(self, grids: list[Path]) -> None:
-        self.INFO(f"GRID BATCH-RUN proceed ....")
-
-        for grid in grids:
-            grid = grid.resolve()
-
-            self.INFO(f"GRID {Q(grid)} proceed ....")
-
-            try:
-                config = self._load_grid(grid)
-
-                batch = self._create_batch(config.name)
-                dataset_pairs = self._create_datasets(batch, config)
-
-                load_dotenv(config.directive.get("langsmith"))
-
-                for values in product(*config.parameter.values()):
-                    parameter = dict(zip(config.parameter.keys(), values))
-
-                    for institution, dataset in dataset_pairs:
-                        try:
-                            instance = self._get_instance(
-                                institution=institution,
-                                dataset=dataset,
-                                batch=batch,
-                                tags=config.tags,
-                                grid=grid,
-                                **parameter
-                            )
-
-                            instance.run(config.directive)
-                            instance.save_data()
-
-                        except Exception as error:
-                            self.ERROR(error)
-                            self.ERROR(f"RUN proceed SKIP")
-
-            except Exception as error:
-                self.ERROR(error)
-                self.ERROR(f"GRID {Q(grid)} proceed SKIP")
-            else:
-                self.INFO(f"GRID {Q(grid)} proceed DONE")
-
-        self.INFO(f"GRID BATCH-RUN proceed DONE")
+        self.P_GRID = re.compile(r"\w+_\d{4}-\d{2}-\d{2}_(\d+)")
 
     @staticmethod
     def _add_module_paths(module_paths: list[Union[Path,str]]) -> None:
@@ -128,42 +79,177 @@ class GridBatchRunner(Logger):
             if str(module_path) not in sys.path:
                 sys.path.insert(0, str(module_path))
 
-    def _load_grid(self, grid: Path) -> Struct:
-        deserialized = load_json_yaml(grid)
-        return Struct(deserialized)
+    def load_config(self,
+                    config: Union[Path, Struct]
+                    ) -> tuple[Struct, str]:
+        if isinstance(config, Struct):
+            return config, ""
 
-    def _create_batch(self,
-                      name: str,
-                      ) -> list[str]:
-        top_dir = self.prefix_dir / name
+        grid_yaml = config.resolve()
+        deserialized = load_json_yaml(grid_yaml)
+        return Struct(deserialized), str(grid_yaml)
+
+    def replicate_grid(self, config: Struct) -> list[str]:
+        top_dir = self.prefix_dir / config.name / "datastore"
         top_dir.mkdir(parents=True, exist_ok=True)
 
+        date = datetime.now().strftime("%Y-%m-%d")
+
         numbers = [
-            self._extract_grid_index(grid)
-            for grid in top_dir.glob(f"{name}_*.yaml")
+            self._extract_grid_index(grid_dir)
+            for grid_dir in top_dir.glob(f"{config.name}_{date}*")
         ]
 
-        index = max(numbers) + 1 if numbers else 1
+        replicate = config.directive["replicate"]
+        index = max(numbers) + int(replicate) if numbers else 1
 
-        return GridBatch(
-            name=name,
+        grid = Grid(
+            name=config.name,
             index=index,
+            date=date,
             prefix_dir=self.prefix_dir,
         )
 
-    @staticmethod
-    def _extract_grid_index(self, grid: Path) -> int:
-        if not grid.is_dir():
+        self.INFO(f"GRID {Q(grid.grid_id)} replicated DONE")
+        return grid
+
+    def _extract_grid_index(self, grid_dir: Path) -> int:
+        if not grid_dir.is_dir():
             return -1
 
-        match = self.P_GRID.fullmatch(grid.stem)
+        match = self.P_GRID.fullmatch(grid_dir.stem)
         return int(match[1]) if match else -1
 
-    def _create_datasets(self,
-                         batch: GridBatch,
+    def get_instance(self,
+                     institution: str,
+                     dataset: str,
+                     tags: list[str],
+                     grid: Grid,
+                     grid_yaml: Path,
+                     **parameter
+                     ) -> GridRunnable:
+        
+        module = parameter.pop("module", None)
+        model_name = parameter.pop("model", None)
+
+        if module is None:
+            raise KeyError(
+                f"{Q('parameter.module')} missing in file {Q(grid_yaml)}"
+            )
+
+        if model_name is None:
+            raise KeyError(
+                f"No {Q('parameter.model_name')} missing in file {Q(grid_yaml)}"
+            )
+
+        class_name = to_camel(module.replace("-", "_"))
+        module_name = module.replace("*", "").replace("-", "_")
+
+        try:
+            module = importlib.import_module(module_name)
+            Class = getattr(module, class_name)
+        
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(
+                f"Can't import the module {Q(module_name)} "
+                f"specified in file {Q(grid_yaml)}"
+            )
+        
+        except AttributeError:
+            raise AttributeError(
+                f"Can't import the class {module_name}.{class_name} "
+                f"specified in file {Q(grid_yaml)}"
+            )
+
+        metadata = Struct({
+            "module": module_name.replace("_", "-"),
+            "institution": institution,
+            "dataset": dataset,
+            "model": model_name,
+            "grid": grid,
+            "tags": tags,
+            "grid_yaml": grid_yaml,
+        })
+
+        return Class(
+            metadata=metadata,
+            **parameter,
+        )
+
+    def __call__(self, config: Union[Path, Struct]) -> None:
+        grid = None
+
+        try:
+            config, grid_yaml = self.load_config(config)
+            grid = self.replicate_grid(config)
+
+            self.INFO(f"GRID {Q(grid.grid_id)} proceed ....")
+
+            dataset_pairs = self.prepare_datasets(grid, config)
+
+            load_dotenv(config.directive.get("langsmith"))
+
+            for values in product(*config.parameter.values()):
+                parameter = dict(zip(config.parameter.keys(), values))
+
+                for institution, dataset in dataset_pairs:
+                    try:
+                        instance = self.get_instance(
+                            institution=institution,
+                            dataset=dataset,
+                            tags=config.tags,
+                            grid=grid,
+                            grid_yaml=grid_yaml,
+                            **parameter
+                        )
+
+                        instance.run(config.directive)
+                        instance.save_data(config.directive)
+
+                    except Exception as error:
+                        self.ERROR(error)
+                        self.ERROR(f"RUN proceed SKIP")
+
+        except Exception as error:
+            self.ERROR(error)
+            grid_id = "unknown" if grid is None else grid.grid_id
+            self.INFO(f"GRID {Q(grid_id)} proceed SKIP")
+        else:
+            self.INFO(f"GRID {grid.grid_id} proceed DONE")
+
+    @property
+    def prefix_dir(self) -> Path:
+        return self._prefix_dir
+
+
+class GridGenerator(GridRunner):
+    def __init__(self,
+                 module_paths: list[Union[Path,str]] = [],
+                 ):
+        super().__init__(
+            module_paths=module_paths,
+        )
+
+    def prepare_datasets(self,
+                         grid: Grid,
                          config: Struct
                          ) -> list[tuple[str, str]]:
-        dataset_dir = batch.batch_dir / "dataset"
+        pass
+
+
+class GridEvaluator(GridRunner):
+    def __init__(self,
+                 module_paths: list[Union[Path,str]] = [],
+                 ):
+        super().__init__(
+            module_paths=module_paths,
+        )
+
+    def prepare_datasets(self,
+                         grid: Grid,
+                         config: Struct
+                         ) -> list[tuple[str, str]]:
+        dataset_dir = grid.grid_dir / "dataset"
         dataset_dir.mkdir(parents=True, exist_ok=True)
 
         dataset_pairs = []
@@ -191,108 +277,40 @@ class GridBatchRunner(Logger):
 
         dataset_pairs = []
 
-        if test_size == 0.0:
-            dataset = f"{dataset_prefix}_full"
-            target_df = source_df
-            dataframe = target_df.reset_index(drop=True)
-            target_dir = dataset_dir / "train"
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target_json = target_dir / f"{dataset}.json"
-            dataframe.to_json(target_json)
+        pick = [pick] if isinstance(pick, int) else pick
+        test = int(test_size * 10)
+        train = 10 - test
+        keywords = keywords if isinstance(keywords, list) else [keywords]
 
-            dataset_pairs.append([institution, dataset])
+        for i in range(*pick):
+            dataset = f"{dataset_prefix}_{train}-{test}_{i:02d}"
+            target_df = {key: pd.DataFrame() for key in ["train", "test"]}
 
-        else:
-            pick = [pick] if isinstance(pick, int) else pick
-            test = int(test_size * 10)
-            train = 10 - test
-            keywords = keywords if isinstance(keywords, list) else [keywords]
-
-            for i in range(*pick):
-                dataset = f"{dataset_prefix}_{train}-{test}_{i:02d}"
-                target_df = {key: pd.DataFrame() for key in ["train", "test"]}
-
-                for _, dataframe in source_df.groupby(keywords):
-                    train_df, test_df = train_test_split(
-                        dataframe,
-                        test_size=test_size,
-                        random_state=i,
-                    )
+            for _, dataframe in source_df.groupby(keywords):
+                trainset_df, testset_df = train_test_split(
+                    dataframe,
+                    test_size=test_size,
+                    random_state=i,
+                )
 
                 target_df["train"] = pd.concat(
-                    [target_df["train"], train_df], axis=0
+                    [target_df["train"], trainset_df], axis=0
                 )
 
                 target_df["test"] = pd.concat(
-                    [target_df["test"], test_df], axis=0
+                    [target_df["test"], testset_df], axis=0
                 )
 
-                for tag in ["train", "test"]:
-                    dataframe = target_df[tag].reset_index(drop=True)
-                    target_dir = dataset_dir / tag
-                    target_dir.mkdir(parents=True, exist_ok=True)
-                    target_json = target_dir / f"{dataset}.json"
-                    dataframe.to_json(target_json)
+            for tag in ["train", "test"]:
+                dataframe = target_df[tag].reset_index(drop=True)
+                target_dir = dataset_dir / tag
+                target_dir.mkdir(parents=True, exist_ok=True)
+                target_json = target_dir / f"{dataset}.json"
+                dataframe.to_json(target_json)
 
-                dataset_pairs.append([institution, dataset])
+            dataset_pairs.append([institution, dataset])
 
         return dataset_pairs
-
-    def _get_instance(self,
-                      institution: str,
-                      dataset: str,
-                      batch: GridBatch,
-                      tags: list[str],
-                      grid: Path,
-                      **parameter
-                      ) -> GridRunnable:
-        
-        module = parameter.pop("module", None)
-        model_name = parameter.pop("model", None)
-
-        if module is None:
-            raise KeyError(f"{Q('parameter.module')} missing in file {Q(grid)}")
-
-        if model_name is None:
-            raise KeyError(f"No {Q('parameter.model_name')} missing in file {Q(grid)}")
-
-        class_name = to_camel(module.replace("-", "_"))
-        module_name = module.replace("^", "").replace("-", "_")
-
-        try:
-            module = importlib.import_module(module_name)
-            Class = getattr(module, class_name)
-        
-        except ModuleNotFoundError:
-            raise ModuleNotFoundError(
-                f"Can't import the module {Q(module_name)} "
-                f"specified in file {Q(grid)}"
-            )
-        
-        except AttributeError:
-            raise AttributeError(
-                f"Can't import the class {module_name}.{class_name} "
-                f"specified in file {Q(grid)}"
-            )
-
-        metadata = Struct({
-            "module": module_name.replace("_", "-"),
-            "institution": institution,
-            "dataset": dataset,
-            "model": model_name,
-            "batch": batch,
-            "tags": tags,
-            "grid": grid,
-        })
-
-        return Class(
-            metadata=metadata,
-            **parameter,
-        )
-
-    @property
-    def prefix_dir(self) -> Path:
-        return self._prefix_dir
 
 
 class GridRunnable(Logger, ABC):
@@ -307,8 +325,8 @@ class GridRunnable(Logger, ABC):
 
         log_file = (
             cenai_path("log") /
-            self.metadata.batch.name /
-            f"{self.metadata.batch.batch_id}.log"
+            self.metadata.grid.name /
+            f"{self.metadata.grid.grid_id}.log"
         )
 
         super().__init__(
@@ -326,9 +344,9 @@ class GridRunnable(Logger, ABC):
             f"_{self.metadata.module}{module_suffix}"
         )
 
-        self._batch_dir = self._metadata.batch.batch_dir
-        self._dataset_dir = self._batch_dir / "dataset"
-        self._datastore_dir = self._batch_dir / "datastore"
+        self._grid_dir = self._metadata.grid.grid_dir
+        self._dataset_dir = self._grid_dir / "dataset"
+        self._datastore_dir = self._grid_dir / "datastore"
         self._source_dir = cenai_path("data") / self._metadata.institution
 
         LangchainHelper.bind_model(metadata.model)
@@ -336,14 +354,14 @@ class GridRunnable(Logger, ABC):
         self._model = LangchainHelper.load_model()
         self._embeddings = LangchainHelper.load_embeddings()
 
-        self._example_df = self._load_dataset()
+        self._dataset_df = self._load_dataset()
         self._result_df = pd.DataFrame()
 
         self._metadata_df = pd.DataFrame({
-            "batch_id": [self._metadata.batch.batch_id],
+            "grid_id": [self._metadata.grid.grid_id],
             "run_id": [self._run_id],
-            "batch_name": [self._metadata.batch.name],
-            "batch_index": [self._metadata.batch.index],
+            "grid_name": [self._metadata.grid.name],
+            "grid_index": [self._metadata.grid.index],
             "module": [self._metadata.module],
             "institution": [self._metadata.institution],
             "dataset": [self._metadata.dataset],
@@ -353,29 +371,24 @@ class GridRunnable(Logger, ABC):
         })
 
     def _load_dataset(self) -> dict[str, pd.DataFrame]:
-        example_df = {}
+        dataset_df = {}
 
         for tag in ["train", "test"]:
             json_file = self.dataset_dir / tag / f"{self.metadata.dataset}.json"
 
             if json_file.is_file():
-                example_df[tag] = pd.read_json(json_file)
+                dataset_df[tag] = pd.read_json(json_file)
             else:
-                example_df[tag] = pd.DataFrame()
+                dataset_df[tag] = pd.DataFrame()
 
-        return example_df
+        return dataset_df
 
     @abstractmethod
-    def run(self,
-            directive: dict[str, Any],
-            input_df: pd.DataFrame = pd.DataFrame()
-            ) -> None:
+    def run(self, directive: dict[str, Any]) -> None:
         pass
 
     @abstractmethod
-    def save_data(self,
-                  directive: dict[str, Any]
-                  ) -> None:
+    def save_data(self, directive: dict[str, Any]) -> None:
         pass
 
     @property
@@ -403,21 +416,29 @@ class GridRunnable(Logger, ABC):
         return self._run_id
 
     @property
+    def header(self) -> str:
+        return f"RUN {Q(self.run_id)}[{Q(self.grid_id)}]"
+
+    @property
     def metadata(self) -> Struct:
         return self._metadata
 
     @property
-    def batch_id(self) -> str:
-        return self.metadata.batch.batch_id
+    def grid_id(self) -> str:
+        return self.metadata.grid.grid_id
 
     @property
     def metadata_df(self) -> pd.DataFrame:
         return self._metadata_df
 
     @property
-    def example_df(self) -> pd.DataFrame:
-        return self._example_df
+    def dataset_df(self) -> pd.DataFrame:
+        return self._dataset_df
 
     @property
     def result_df(self) -> pd.DataFrame:
-        return self.result_df
+        return self._result_df
+
+    @result_df.setter
+    def result_df(self, value: pd.DataFrame) -> None:
+        self._result_df = value

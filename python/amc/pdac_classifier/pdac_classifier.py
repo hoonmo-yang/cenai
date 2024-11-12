@@ -67,43 +67,25 @@ class PDACClassifier(GridRunnable, ABC):
         ]
         return sections if sections else ["본문", "결론"]
 
-    def run(self,
-            directive: dict[str, Any],
-            input_df: pd.DataFrame = pd.DataFrame()
-            ) -> None:
+    def run(self, directive: dict[str, Any]) -> None:
+        self.classify(head=directive["head"])
 
-        self.classify(
-            head=directive["head"],
-            input_df=input_df
-        )
+    def classify(self, head: int = 0) -> None:
+        self.INFO(f"{self.header} CLASSIFY proceed ....")
 
-    def classify(self,
-                 head: int = 0,
-                 input_df: pd.DataFrame = pd.DataFrame()
-                 ) -> None:
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CLASSIFY proceed ...."
-        )
+        testset_df = self.dataset_df["test"]
+        total = testset_df.shape[0]
 
-        if input_df.empty:
-            input_df = self.example_df["test"]
-
-            if input_df.empty:
-                raise ValueError(
-                    "No input data for PDAC classification"
-                )
-
-            total = input_df.shape[0]
-            if head > 0:
-                input_df = input_df.head(head)
+        if head > 0:
+            testset_df = testset_df.head(head)
 
         context = self.classify_pre()
 
-        self.result_df = input_df.apply(
+        self.result_df = testset_df.apply(
             self.classify_foreach,
-            category_text=self.get_category_text,
-            category_labels=self.get_category_labels,
-            partial=input_df.shape[0],
+            category_text=self.stringfy_categories(),
+            category_labels=self.get_category_labels(),
+            partial=testset_df.shape[0],
             total=total,
             context=context,
             axis=1,
@@ -111,9 +93,7 @@ class PDACClassifier(GridRunnable, ABC):
 
         self.classify_post()
 
-        self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CLASSIFY proceed DONE"
-        )
+        self.INFO(f"{self.header} CLASSIFY proceed DONE")
 
     @abstractmethod
     def classify_pre(self) -> tuple[
@@ -163,7 +143,7 @@ class PDACClassifier(GridRunnable, ABC):
         timer.lap()
 
         entry = pd.Series({
-            "batch_id": self.batch_id,
+            "grid_id": self.grid_id,
             "run_id": self.run_id,
             "partial": partial,
             "total": total,
@@ -188,7 +168,7 @@ class PDACClassifier(GridRunnable, ABC):
         )
 
         self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CLASSIFY proceed DONE "
+            f"{self.header} CLASSIFY proceed DONE "
             f"[{field.name + 1:02d}/{partial:02d}] proceed DONE"
         )
         return entry
@@ -204,34 +184,36 @@ class PDACClassifier(GridRunnable, ABC):
         hit_ratio = (hit / total) * 100
 
         self.INFO(
-            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] "
-            f"hit ratio: {hit_ratio:.1f}% ({hit}/{total})"
+            f"{self.header} hit ratio: {hit_ratio:.1f}% ({hit}/{total})"
         )
 
     def save_data(self,
                   directive: dict[str, Any]
                   ) -> None:
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] DATA saved ....")
+        self.INFO(f"{self.header} DATA saved ....")
 
-        datastore_dir = self.datastore_dir / self.batch_id
-        datastore_dir.mkdir(parents=True, exist_ok=True)
-        data_json = datastore_dir / f"{self.run_id}.json"
+        if directive["save"]:
+            datastore_dir = self.datastore_dir / self.grid_id
+            datastore_dir.mkdir(parents=True, exist_ok=True)
+            data_json = datastore_dir / f"{self.run_id}.json"
 
-        to_json(data_json, self.metadata_df, self.result_df)
+            to_json(data_json, self.metadata_df, self.result_df)
 
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] DATA saved DONE")
+            self.INFO(f"{self.header} DATA saved DONE")
+        else:
+            self.INFO(f"{self.header} DATA saved SKIP")
 
-    def stringfy_examples(self) -> str:
-        example_df = self.example_df["train"].reset_index(drop=True)
+    def stringfy_trainsets(self) -> str:
+        trainset_df = self.dataset_df["train"].reset_index(drop=True)
 
-        examples = example_df.apply(
-            self._stringfy_example_foreach,
+        trainsets = trainset_df.apply(
+            self._stringfy_trainset_foreach,
             axis=1
         )
 
-        return "\n\n".join(examples)
+        return "\n\n".join(trainsets)
 
-    def _stringfy_example_foreach(self, field: pd.Series) -> str:
+    def _stringfy_trainset_foreach(self, field: pd.Series) -> str:
         section_text = "\n".join([
             f"**{section}**: {field[section]}"
             for section in self.sections
@@ -244,13 +226,13 @@ class PDACClassifier(GridRunnable, ABC):
         )
 
     def stringfy_categories(self) -> str:
-        prefix = self.dataset.split("_")[0]
+        prefix = self.metadata.dataset.split("_")[0]
         txt_file = self.source_dir / f"{prefix}.txt"
         text = txt_file.read_text('utf-8')
         return text
 
     def get_category_labels(self) -> list[str]:
-        return self.example_df["train"]["유형"].unique().tolist() + ["Not available"]
+        return self.dataset_df["train"]["유형"].unique().tolist() + ["Not available"]
 
     @staticmethod
     def concat_documents(documents: list[Document]) -> str:
@@ -268,3 +250,7 @@ class PDACClassifier(GridRunnable, ABC):
     @property
     def classifier_chain(self) -> Runnable:
         return self._classifier_chain
+
+    @classifier_chain.setter
+    def classifier_chain(self, chain: Runnable) -> None:
+        self._classifier_chain = chain
