@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 import argparse
-from datetime import datetime
 from pathlib import Path
 
 from cenai_core import Logger
-from cenai_core.dataman import Q
-
-from amc.pdac_classifier import PDACClassifier
+from cenai_core.grid import GridBatchRunner
 
 
 class PDACClassification(Logger):
     grid_dir = Path("grid")
-    logger_name = "amc.pdac_classification"
+    logger_name = "cenai.system"
     debug_grid = "debug"
 
     def __init__(self):
         super().__init__()
+
+        self._runner = GridBatchRunner()
 
     @classmethod
     def _get_args(cls) -> argparse.Namespace:
@@ -94,43 +93,8 @@ class PDACClassification(Logger):
             batch=option.batch,
         )
 
-        for grid in grids:
-            self.INFO(f"GRID {Q(grid)} proceed ....")
-
-            PDACClassifier.execute(grid)
-
-
-
-
-
-            config = PDACClassifier.load_grid(grid)
-
-            PDACClassifier.set_
-            
-            
-            
-            config.title
-
-
-
-
-
-
-            datasets = PDACClassifier.create_datasets(config.dataset)
-
-            time = datetime.now().strftime("%Y-%m-%dT%H:%M")
-            log_name = f"{config.title}-{time}"
-            PDACClassifier.evaluate(
-                datasets=datasets,
-
-
-
-                spec_info=spec_info,
-                aux_info=aux_info,
-                log_name=log_name,
-            )
-
-            self.INFO(f"GRID {Q(grid)} proceed DONE\n")
+        if grids:
+            self._runner(grids)
 
         self.INFO("bye")
 
@@ -139,5 +103,6 @@ if __name__ == "__main__":
     try:
         pdac_classify = PDACClassification()
         pdac_classify()
+
     except Exception as e:
         PDACClassification.ERROR(e)

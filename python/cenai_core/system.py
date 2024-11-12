@@ -7,7 +7,7 @@ from timeit import default_timer
 
 
 def cenai_path(*args) -> Path:
-    return Path(os.environ["CENAI_DIR"]).joinpath(*args)
+    return Path(os.environ["CENAI_DIR"]).joinpath(*args).resolve()
 
 
 def load_dotenv(langsmith: Optional[bool] = None) -> None:

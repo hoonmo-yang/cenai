@@ -1,5 +1,8 @@
+from typing import Optional
+
 import logging
 import os
+from pathlib import Path
 
 from cenai_core.system import cenai_path
 
@@ -7,7 +10,7 @@ from cenai_core.system import cenai_path
 class Logger:
     logger = {}
 
-    def __init__(self, log_name: str = ""):
+    def __init__(self, log_file: Optional[Path] = None):
 
         logger_name = self.__class__.logger_name
 
@@ -19,10 +22,8 @@ class Logger:
             handler.setFormatter(formatter)
             logger.addHandler(handler)
 
-            if log_name:
-                log_dir = cenai_path("log") / logger_name
-                log_dir.mkdir(parents=True, exist_ok=True)
-                log_file = log_dir / f"{log_name}.log"
+            if log_file:
+                log_file.parent.mkdir(parents=True, exist_ok=True)
 
                 formatter = logging.Formatter(
                     "%(asctime)s - %(levelname)s - %(message)s"

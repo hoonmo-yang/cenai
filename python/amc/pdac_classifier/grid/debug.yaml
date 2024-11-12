@@ -1,15 +1,24 @@
+name: debug
+tags:
+- pdac-classifier
+- amc-poc
+
 dataset:
+  institution:
+  - amc
   dataset_prefix:
   - pdac-report3
   test_size:
   - 0.2
+  keywords:
+  - 유형
   pick:
-  - 8
+  - 1
 
-hparam:
-  algorithm:
-  - classifier8
-  model_name:
+parameter:
+  module:
+  - ^pdac-classifier5
+  model:
   - gpt-3.5-turbo
   sections:
   - [본문]
@@ -18,6 +27,6 @@ hparam:
   num_questions:
   - 5
 
-aux:
+directive:
   langsmith: true
-
+  head: 1

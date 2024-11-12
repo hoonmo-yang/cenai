@@ -1,14 +1,18 @@
-title: amc-poc-2024-11-07
+name: amc-poc-2024-11-07
 tags:
 - pdac-classifier
 - amc-poc
 
 dataset:
+  institution:
+  - amc
   dataset_prefix:
   - pdac-report3
   - pdac-report2-inc
   test_size:
   - 0.2
+  keywords:
+  - 유형
   pick:
   - 8
 
@@ -16,14 +20,11 @@ directive:
   langsmith: true
   head:
 
-hparam:
-  algorithm:
-  - classfier5
-  - classfier7
-  - classfier8
-  model_name:
+parameter:
+  module:
+  - ^pdac-classfier5
+  model:
   - gpt-4o
-  - gpt-3.5-turbo
   sections:
   - [본문, 결론]
   - [본문]

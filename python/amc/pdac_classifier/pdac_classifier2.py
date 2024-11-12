@@ -8,41 +8,37 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import dedent, Q
+from cenai_core.dataman import dedent, Q, Struct
+from cenai_core.grid import GridChainContext
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
 
-class Classifier2(PDACClassifier):
+class PDACClassifier2(PDACClassifier):
     def __init__(self,
-                 dataset: str,
-                 model_name: str,
-                 algorithm: str,
-                 sections: list[str],
+                 metadata: Struct,
                  topk: int,
-                 **kwargs
+                 sections: list[str],
+                 **parameter
                  ):
         super().__init__(
-            dataset=dataset,
-            model_name=model_name,
-            algorithm=algorithm,
+            metadata=metadata,
+            module_suffix=f"k{topk:02d}",
             sections=sections,
-            hparam=f"k{topk:02d}",
-            **kwargs
         )
 
-        self.INFO(f"RUN {Q(self.run_id)} prepared ....")
+        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] prepared ....")
 
         self._topk = topk
-        self._evaluation_df.loc[0, "topk"] = self._topk
-        
+        self._metadata_df.loc[0, "topk"] = self._topk
+
         retriever = self._create_retriever()
         self._classifier_chain = self._create_classifier_chain(retriever)
 
-        self.INFO(f"RUN {Q(self.run_id)} prepared DONE")
+        self.INFO(f"{Q(self.run_id)}[{Q(self.batch_id)}] prepared DONE")
 
     def _create_retriever(self) -> BaseRetriever:
-        self.INFO(f"RUN {Q(self.run_id)} RAG prepared ....")
+        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared ....")
 
         example_text = self.stringfy_examples()
         documents = [Document(page_content=example_text)]
@@ -64,13 +60,15 @@ class Classifier2(PDACClassifier):
             search_kwargs={"k": self._topk},
         )
 
-        self.INFO(f"RUN {Q(self.run_id)} RAG prepared DONE")
+        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared DONE")
         return retriever
 
     def _create_classifier_chain(self,
                                  retriever: BaseRetriever
                                  ) -> Runnable:
-        self.INFO(f"RUN {Q(self.run_id)} CHAIN prepared ....")
+        self.INFO(
+            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared ...."
+        )
 
         system_prompt = """
         당신은 췌장암 환자의 CT 판독문이 어떤 유형에 속하는지 예측하고,
@@ -112,29 +110,10 @@ class Classifier2(PDACClassifier):
             self.model.with_structured_output(PDACClassifyResult)
         )
 
-        self.INFO(f"RUN {Q(self.run_id)} CHAIN prepared DONE")
+        self.INFO(
+            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared DONE"
+        )
         return chain
 
-    def classify(self) -> None:
-        self.INFO(f"RUN {Q(self.run_id)} CLASSIFY proceed ....")
-
-        category_labels = self.get_category_labels()
-
-        category_text = "\n".join(
-            pd.Series(category_labels).apply(lambda field: f"- {field}")
-        )
-
-        example_df = self._example_df["test"]
-
-        self._result_df = example_df.apply(
-            self.classify_foreach,
-            chain=self._classifier_chain,
-            category_text=category_text,
-            category_labels=category_labels,
-            sections=self.sections,
-            run_id=self.run_id,
-            total=example_df.shape[0],
-            axis=1,
-        )
-
-        self.INFO(f"RUN {Q(self.run_id)} CLASSIFY proceed DONE")
+    def classify_pre(self) -> GridChainContext:
+        return GridChainContext()

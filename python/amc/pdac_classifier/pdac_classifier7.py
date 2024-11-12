@@ -9,7 +9,8 @@ from langchain.retrievers import EnsembleRetriever
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import dedent, Q
+from cenai_core.dataman import dedent, Q, Struct
+from cenai_core.grid import GridChainContext
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
@@ -34,32 +35,27 @@ class MultiqueryQuestionHandler(BaseCallbackHandler):
         return "\n".join(self._questions)
 
 
-class Classifier7(PDACClassifier):
+class PDACClassifier7(PDACClassifier):
     def __init__(self,
-                 dataset: str,
-                 model_name: str,
-                 algorithm: str,
+                 metadata: Struct,
                  sections: list[str],
                  topk: int,
                  num_questions: int,
-                 **kwargs
+                 **parameter
                  ):
         super().__init__(
-            dataset=dataset,
-            model_name=model_name,
-            algorithm=algorithm,
+            metadata=metadata,
+            module_suffix=f"k{topk:02d}_q{num_questions:02d}",
             sections=sections,
-            hparam=f"k{topk:02d}_q{num_questions:02d}",
-            **kwargs
         )
 
-        self.INFO(f"RUN {Q(self.run_id)} prepared ....")
+        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] prepared ....")
 
         self._topk = topk
         self._num_questions = num_questions
 
-        self._evaluation_df.loc[0, ["topk", "num_questions"]] = [
-            self._topk, self._num_questions
+        self._metadata_df.loc[0, ["topk", "num_questions"]] = [
+            self._topk, self._num_questions,
         ]
 
         self.multiquery_question_handler = MultiqueryQuestionHandler()
@@ -69,10 +65,10 @@ class Classifier7(PDACClassifier):
 
         self._classifier_chain = self._create_classifier_chain(multiquery_retriever)
 
-        self.INFO(f"RUN {Q(self.run_id)} prepared DONE")
+        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] prepared DONE")
 
     def _create_retriever(self) -> BaseRetriever:
-        self.INFO(f"RUN {Q(self.run_id)} RAG prepared ....")
+        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared ....")
 
         example_text = self.stringfy_examples()
         documents = [Document(page_content=example_text)]
@@ -104,13 +100,16 @@ class Classifier7(PDACClassifier):
             weights=[0.7, 0.3],
         )
 
-        self.INFO(f"RUN {Q(self.run_id)} RAG prepared DONE")
+        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared DONE")
         return retriever
 
     def _create_multiquery_retriever(self,
                                      retriever: BaseRetriever
                                      ) -> Runnable:
-        self.INFO(f"RUN {Q(self.run_id)} MULTI-QUERY RETRIEVER prepared ....")
+        self.INFO(
+            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] "
+            "MULTI-QUERY RETRIEVER prepared ...."
+        )
 
         prompt = """
         사용자가 제시한 원 질문을 바탕으로, 췌장암 환자의 CT 판독문 유형을 예측하는 데 유용한
@@ -144,13 +143,18 @@ class Classifier7(PDACClassifier):
             retriever
         )
 
-        self.INFO(f"RUN {Q(self.run_id)} MULTI-QUERY RAG prepared DONE")
+        self.INFO(
+            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] "
+            "MULTI-QUERY RETRIEVER prepared DONE"
+        )
         return multiquery_retriever
 
     def _create_classifier_chain(self,
                                  retriever: BaseRetriever
                                  ) -> Runnable:
-        self.INFO(f"RUN {Q(self.run_id)} CHAIN prepared ....")
+        self.INFO(
+            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared ...."
+        )
 
         system_prompt = """
         당신은 췌장암 환자의 CT 판독문이 특정 유형에 속하는지 예측하고,
@@ -198,34 +202,17 @@ class Classifier7(PDACClassifier):
             self.model.with_structured_output(PDACClassifyResult)
         )
 
-        self.INFO(f"RUN {Q(self.run_id)} CHAIN prepared DONE")
+        self.INFO(
+            f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] CHAIN prepared DONE"
+        )
         return chain
 
-    def classify(self) -> None:
-        self.INFO(f"RUN {Q(self.run_id)} CLASSIFY proceed ....")
-
-        category_labels = self.get_category_labels()
-        category_text = self.stringfy_categories()
-
-        example_df = self._example_df["test"]
-
-        hparam = {
-            "num_questions": self._num_questions,
-        }
-
-        self._result_df = example_df.apply(
-            self.classify_foreach,
-            chain=self._classifier_chain,
-            category_text=category_text,
-            category_labels=category_labels,
-            sections=self.sections,
-            run_id=self.run_id,
-            hparam=hparam,
-            others={
+    def classify_pre(self) -> GridChainContext:
+        return GridChainContext(
+            parameter={
+                "num_questions": self._num_questions,
+            },
+            handler={
                 "생성질문": self.multiquery_question_handler,
             },
-            total=example_df.shape[0],
-            axis=1,
         )
-
-        self.INFO(f"RUN {Q(self.run_id)} CLASSIFY proceed DONE")

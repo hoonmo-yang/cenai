@@ -3,16 +3,9 @@ from typing import Any, Hashable, Sequence
 import json
 from operator import attrgetter, itemgetter
 from pathlib import Path
-from rapidfuzz import process
+import re
 import textwrap
 import yaml
-
-
-def match_text(keyword: str, candidates: list[str]) -> str:
-    best_match = process.extractOne(
-        keyword, candidates
-    )
-    return best_match[0]
 
 
 def load_json_yaml(src: Path, **kwargs) -> dict[Hashable, Any]:
@@ -85,3 +78,18 @@ def dedent(source: str) -> str:
 class Struct:
     def __init__(self, data: dict[str, Any]):
         self.__dict__.update(data)
+
+
+
+def to_camel(literal: str) -> str:
+    words = literal.split("_")
+
+    return "".join([
+        word[1:].upper() if word[0] == "^" else word.capitalize()
+        for word in literal.split("_")
+    ])
+
+def to_snake(literal: str) -> str:
+    snake = re.sub(r"(?<=[a-z])([A-Z])", r'_\1', literal)
+    snake = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", snake)
+    return snake.lower()
