@@ -1,0 +1,46 @@
+name: amc-poc-2024-11-14
+tags:
+- pdac-classifier
+- amc-poc
+
+dataset:
+  institution:
+  - amc
+  task:
+  - pdac-classifier
+  corpus:
+  - pdac-report4.json
+  test_size:
+  - 0.2
+  keywords:
+  - 유형
+  pick:
+  - 8
+  prompt:
+  - prompt-v1-kr.yaml
+  - prompt-v1-en.yaml
+  - prompt-v2-kr.yaml
+  - prompt-v2-en.yaml
+  - prompt-v3-kr.yaml
+  - prompt-v3-en.yaml
+  - prompt-v4-en.yaml
+  - prompt-v5-en.yaml
+
+directive:
+  langsmith: false
+  replicate: false
+  save: true
+  head:
+  num_tries: 5
+  recovery_time: 5
+
+parameter:
+  module:
+  - "*pdac*-classifier9"
+  model:
+  - gpt-4o
+  sections:
+  - [본문]
+  #- [본문, 결론]
+  topk:
+  - 10

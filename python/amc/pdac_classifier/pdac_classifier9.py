@@ -6,30 +6,28 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import Runnable, RunnablePassthrough
 from langchain.retrievers import EnsembleRetriever
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import LLMChainExtractor
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import dedent, Struct
+from cenai_core.dataman import Struct
+from cenai_core.langchain_helper import load_chatprompt
 from cenai_core.grid import GridChainContext
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
 
-class PDACClassifier6(PDACClassifier):
+class PDACClassifier9(PDACClassifier):
     def __init__(self,
                  metadata: Struct,
                  sections: list[str],
                  topk: int,
-                 **parameter
+                 **kwargs
                  ):
         super().__init__(
             metadata=metadata,
             module_suffix=f"k{topk:02d}",
             sections=sections,
         )
-
         self.INFO(f"{self.header} prepared ....")
 
         self._topk = topk
@@ -73,49 +71,17 @@ class PDACClassifier6(PDACClassifier):
             weights=[0.7, 0.3],
         )
 
-        compressor = LLMChainExtractor.from_llm(self.model)
-        compressor_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor,
-            base_retriever=retriever,
-        )
-
         self.INFO(f"{self.header} RAG prepared DONE")
-        return compressor_retriever
+        return retriever
 
     def _create_classifier_chain(self,
                                  retriever: BaseRetriever
                                  ) -> Runnable:
         self.INFO(f"{self.header} CHAIN prepared ....")
 
-        system_prompt = """
-        당신은 췌장암 환자의 CT 판독문이 어떤 유형에 속하는지 예측하고,
-        그렇게 예측한 이유를 설명하는 역할을 맡고 있습니다.
-        당신은 유형의 설명과 검색된 문맥을 이용하여 입력된 CT 판독문의 유형을
-        맞추세요. 왜 그런지 유형에 대한 근거를 명확하게 제시해 주세요.
+        prompt_args = load_chatprompt(self.prompt)
 
-        *유형의 설명*:
-        {category_text}
-
-        *문맥*:
-        {context}
-        """
-
-        human_prompt = """
-        {question}
-
-        다음 사항을 참고해 주세요:
-        1. 답변은 'PDAClassifierResult' 함수의 속성대로 출력되어야 합니다.
-        2. 유형 결정 근거는 한국어를 사용하세요.
-        3. 전문 용어는 입력에서 사용한 원문을 그대로 유지하세요.
-
-        *유형*:
-        *근거*:
-        """
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", dedent(system_prompt)),
-            ("human", dedent(human_prompt)),
-        ])
+        prompt = ChatPromptTemplate(**prompt_args)
 
         chain = (
             RunnablePassthrough().assign(

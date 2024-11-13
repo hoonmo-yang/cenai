@@ -1,0 +1,27 @@
+name: debug
+tags:
+- paper-summarizer
+- nrf-poc
+
+dataset:
+  institution:
+  - nrf
+  dataset_dir:
+  - paper
+  dataset_ext:
+  - pdf
+
+parameter:
+  module:
+  - "paper-summarizer1"
+  model:
+  - gpt-3.5-turbo
+  chunk_size:
+  - 500
+  overlap:
+  - 100
+
+directive:
+  langsmith: true
+  save: false
+  replicate: false

@@ -407,4 +407,4 @@ freeze.bak
 model/
 
 !bin/
-output/
+gridout/

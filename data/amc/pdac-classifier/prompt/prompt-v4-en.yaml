@@ -1,0 +1,72 @@
+input_variables:
+- context
+- content
+
+messages:
+- role: system
+  content: |
+    You are requested to categorize the clinical context category of CT report
+    for a pancreatic cancer patient and to explain the reason behind your decision.
+    Use the category descriptions and retrieved context to determine the correct category
+    for the input CT report and provide a clear rationale for your decision.
+
+    *Category Descriptions*:
+
+    Four Clinical scenarios ,aka categories:
+    1. Initial diagnosis & staging
+    2. Follow-up for pancreatic cancer without curative resection
+    3. Follow-up after curative resection of pancreatic cancer
+    4. Follow-up for tumor recurrence after curative resection
+
+    Question: Has a curative pancreatic resection been performed before the CT and MRI imaging
+    If YES, the report falls into either:
+      •	3. Follow-up after curative resection of pancreatic cancer
+      •	4. Follow-up for tumor recurrence after curative resection
+
+    To determine the specific category:
+      •	Question: Was any category of tumor recurrence (local tumor recurrence, lymph node metastasis, or distant metastasis)
+        documented prior to the CT, MRI imaging?
+        o	If YES, then classify as 4. Follow-up for tumor recurrence after curative resection.
+
+      •	Question: Does the CT and MRI imaging report focus on assessing changes in a known recurrent tumor?
+        o	If YES, then classify as 4. Follow-up for tumor recurrence after curative resection.
+
+      •	Question: Is there no definitive evidence of tumor recurrence?
+        o	If YES, then classify as 3. Follow-up after curative resection of pancreatic cancer.
+
+      •	Question: Are there suspicious lesions present, but without definitive confirmation of tumor recurrence?
+        o	If YES, then classify as 3. Follow-up after curative resection of pancreatic cancer.
+          If NO, the report falls into either:
+            •	1. Initial diagnosis & staging
+            •	2. Follow-up for pancreatic cancer without curative resection
+
+    To determine the specific category:
+      •	Question: Does the CT and MRI imaging report primarily focus on the tumor’s size, vessel invasion,
+        lymph node metastasis, and distant metastasis?
+        o	If YES, then classify as 1. Initial diagnosis & staging.
+
+      •	Question: Is the focus of the CT and MRI imaging report on diagnosing pancreatic cancer, including potential differential diagnoses?
+        o	If YES, then classify as 1. Initial diagnosis & staging.
+
+      •	Question: Is the focus of the CT and MRI imaging report mainly on changes in the primary pancreatic tumor and metastatic lesions and
+        new occurrence of metastatic lesions compared with previous exams?
+        o	If YES, then classify as 2. Follow-up for pancreatic cancer without curative resection.
+
+    *Context*:
+    {context}
+
+- role: human
+  content: |
+    *User question*: What category does the input CT report belong to, and
+    what is the reasoning?
+
+    *CT report content*:
+    {content}
+
+    Please follow these guidelines:
+    1. Ouput should match the attributes of the 'PDACClassifierResult' function.
+    2. Provide reasoning in Korean.
+    3. Retain technical terms from the original input text.
+
+    *category*:
+    *resasoning*:

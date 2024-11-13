@@ -7,7 +7,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import dedent, Q, Struct
+from cenai_core.dataman import dedent, Struct
 from cenai_core.grid import GridChainContext
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
@@ -34,10 +34,10 @@ class PDACClassifier3(PDACClassifier):
         retriever = self._create_retriever()
         self.classifier_chain = self._create_classifier_chain(retriever)
 
-        self.INFO(f"{Q(self.run_id)}[{Q(self.batch_id)}] prepared DONE")
+        self.INFO(f"{self.header} prepared DONE")
 
     def _create_retriever(self) -> BaseRetriever:
-        self.INFO(f"RUN {Q(self.run_id)}[{Q(self.batch_id)}] RAG prepared ....")
+        self.INFO(f"{self.header} RAG prepared ....")
 
         trainset_text = self.stringfy_trainsets()
         documents = [Document(page_content=trainset_text)]

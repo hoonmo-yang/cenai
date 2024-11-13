@@ -9,6 +9,7 @@ import re
 from itertools import product
 from pathlib import Path
 from pydantic import BaseModel, Field
+import shutil
 from sklearn.model_selection import train_test_split
 import sys
 
@@ -100,7 +101,7 @@ class GridRunner(Logger):
             for grid_dir in top_dir.glob(f"{config.name}_{date}*")
         ]
 
-        replicate = config.directive["replicate"]
+        replicate = config.directive.get("replicate", True)
         index = max(numbers) + int(replicate) if numbers else 1
 
         grid = Grid(
@@ -121,16 +122,15 @@ class GridRunner(Logger):
         return int(match[1]) if match else -1
 
     def get_instance(self,
-                     institution: str,
-                     dataset: str,
+                     module_arg: dict[str, Any],
+                     dataset_arg: dict[str, Any],
                      tags: list[str],
                      grid: Grid,
-                     grid_yaml: Path,
-                     **parameter
+                     grid_yaml: Path
                      ) -> GridRunnable:
         
-        module = parameter.pop("module", None)
-        model_name = parameter.pop("model", None)
+        module = module_arg.pop("module", None)
+        model_name = module_arg.pop("model", None)
 
         if module is None:
             raise KeyError(
@@ -161,19 +161,19 @@ class GridRunner(Logger):
                 f"specified in file {Q(grid_yaml)}"
             )
 
-        metadata = Struct({
-            "module": module_name.replace("_", "-"),
-            "institution": institution,
-            "dataset": dataset,
-            "model": model_name,
-            "grid": grid,
-            "tags": tags,
-            "grid_yaml": grid_yaml,
-        })
+        metadata = Struct(
+            {
+                "module": module_name.replace("_", "-"),
+                "model": model_name,
+                "grid": grid,
+                "tags": tags,
+                "grid_yaml": grid_yaml,
+            } | dataset_arg
+        )
 
         return Class(
             metadata=metadata,
-            **parameter,
+            **module_arg,
         )
 
     def __call__(self, config: Union[Path, Struct]) -> None:
@@ -185,22 +185,21 @@ class GridRunner(Logger):
 
             self.INFO(f"GRID {Q(grid.grid_id)} proceed ....")
 
-            dataset_pairs = self.prepare_datasets(grid, config)
+            dataset_args = self.prepare_datasets(grid, config)
 
             load_dotenv(config.directive.get("langsmith"))
 
-            for values in product(*config.parameter.values()):
-                parameter = dict(zip(config.parameter.keys(), values))
+            for module_values in product(*config.parameter.values()):
+                module_arg = dict(zip(config.parameter.keys(), module_values))
 
-                for institution, dataset in dataset_pairs:
+                for dataset_arg in dataset_args:
                     try:
                         instance = self.get_instance(
-                            institution=institution,
-                            dataset=dataset,
+                            module_arg=dict(module_arg),
+                            dataset_arg=dataset_arg,
                             tags=config.tags,
                             grid=grid,
                             grid_yaml=grid_yaml,
-                            **parameter
                         )
 
                         instance.run(config.directive)
@@ -233,7 +232,7 @@ class GridGenerator(GridRunner):
     def prepare_datasets(self,
                          grid: Grid,
                          config: Struct
-                         ) -> list[tuple[str, str]]:
+                         ) -> list[dict[str, str]]:
         pass
 
 
@@ -248,42 +247,49 @@ class GridEvaluator(GridRunner):
     def prepare_datasets(self,
                          grid: Grid,
                          config: Struct
-                         ) -> list[tuple[str, str]]:
+                         ) -> list[dict[str, str]]:
         dataset_dir = grid.grid_dir / "dataset"
         dataset_dir.mkdir(parents=True, exist_ok=True)
 
-        dataset_pairs = []
+        dataset_args = []
         dataset_param = config.dataset
         for values in product(*dataset_param.values()):
             parameter = dict(zip(dataset_param.keys(), values))
 
-            dataset_pairs.extend(
+            dataset_args.extend(
                 self._split_datasets(dataset_dir, **parameter)
             )
 
-        return dataset_pairs
+        return dataset_args
 
     def _split_datasets(self,
                         dataset_dir: Path,
                         institution: str,
-                        dataset_prefix: str,
+                        task: str,
+                        corpus: str,
                         test_size: float,
                         pick: Union[int, list[int]],
-                        keywords: Union[str, list[str]]
+                        keywords: Union[str, list[str]],
+                        prompt: str,
                         ) -> list[str]:
-        source_dir = cenai_path("data") / institution
-        json_file = source_dir / f"{dataset_prefix}.json"
-        source_df = pd.read_json(json_file)
+        corpus_dir = cenai_path("data") / institution / task / "corpus"
+        corpus_file = corpus_dir / f"{corpus}"
 
-        dataset_pairs = []
+        records = load_json_yaml(corpus_file)
+        source_df = pd.DataFrame(records)
+
+        dataset_args = []
 
         pick = [pick] if isinstance(pick, int) else pick
         test = int(test_size * 10)
         train = 10 - test
+        corpus = corpus.split(".")[0]
+
         keywords = keywords if isinstance(keywords, list) else [keywords]
 
         for i in range(*pick):
-            dataset = f"{dataset_prefix}_{train}-{test}_{i:02d}"
+            dataset = f"{corpus}_{train}-{test}_{i:02d}"
+
             target_df = {key: pd.DataFrame() for key in ["train", "test"]}
 
             for _, dataframe in source_df.groupby(keywords):
@@ -308,9 +314,14 @@ class GridEvaluator(GridRunner):
                 target_json = target_dir / f"{dataset}.json"
                 dataframe.to_json(target_json)
 
-            dataset_pairs.append([institution, dataset])
+            dataset_args.append({
+                "institution": institution,
+                "task": task,
+                "dataset": dataset,
+                "prompt": prompt,
+            })
 
-        return dataset_pairs
+        return dataset_args
 
 
 class GridRunnable(Logger, ABC):
@@ -336,6 +347,9 @@ class GridRunnable(Logger, ABC):
         if dataset_suffix:
             dataset_suffix = f"_{dataset_suffix}"
 
+        prompt_suffix = self.metadata.prompt.split(".")[0]
+        dataset_suffix += f"_{prompt_suffix}"
+
         if module_suffix:
             module_suffix = f"_{module_suffix}"
 
@@ -347,41 +361,41 @@ class GridRunnable(Logger, ABC):
         self._grid_dir = self._metadata.grid.grid_dir
         self._dataset_dir = self._grid_dir / "dataset"
         self._datastore_dir = self._grid_dir / "datastore"
-        self._source_dir = cenai_path("data") / self._metadata.institution
+
+        self._source_dir = (
+            cenai_path("data") /
+            self.metadata.institution /
+            self.metadata.task
+        )
+
+        self._corpus_dir = self._source_dir / "corpus"
+        self._prompt_dir = self._source_dir / "prompt"
+
+        self._prompt = (
+            self._prompt_dir / self._metadata.prompt
+        )
 
         LangchainHelper.bind_model(metadata.model)
 
         self._model = LangchainHelper.load_model()
         self._embeddings = LangchainHelper.load_embeddings()
 
-        self._dataset_df = self._load_dataset()
         self._result_df = pd.DataFrame()
 
         self._metadata_df = pd.DataFrame({
-            "grid_id": [self._metadata.grid.grid_id],
-            "run_id": [self._run_id],
-            "grid_name": [self._metadata.grid.name],
-            "grid_index": [self._metadata.grid.index],
-            "module": [self._metadata.module],
-            "institution": [self._metadata.institution],
-            "dataset": [self._metadata.dataset],
-            "model": [self._metadata.model],
-            "tags": [",".join(self._metadata.tags)],
-            "grid": [str(self._metadata.grid)],
+            "grid_id": [self.metadata.grid.grid_id],
+            "run_id": [self.run_id],
+            "grid_name": [self.metadata.grid.name],
+            "grid_index": [self.metadata.grid.index],
+            "module": [self.metadata.module],
+            "institution": [self.metadata.institution],
+            "task": [self.metadata.task],
+            "dataset": [self.metadata.dataset],
+            "prompt": [self.metadata.prompt],
+            "model": [self.metadata.model],
+            "tags": [",".join(self.metadata.tags)],
+            "grid_yaml": [str(self.metadata.grid_yaml)],
         })
-
-    def _load_dataset(self) -> dict[str, pd.DataFrame]:
-        dataset_df = {}
-
-        for tag in ["train", "test"]:
-            json_file = self.dataset_dir / tag / f"{self.metadata.dataset}.json"
-
-            if json_file.is_file():
-                dataset_df[tag] = pd.read_json(json_file)
-            else:
-                dataset_df[tag] = pd.DataFrame()
-
-        return dataset_df
 
     @abstractmethod
     def run(self, directive: dict[str, Any]) -> None:
@@ -432,13 +446,46 @@ class GridRunnable(Logger, ABC):
         return self._metadata_df
 
     @property
-    def dataset_df(self) -> pd.DataFrame:
-        return self._dataset_df
-
-    @property
     def result_df(self) -> pd.DataFrame:
         return self._result_df
 
     @result_df.setter
     def result_df(self, value: pd.DataFrame) -> None:
         self._result_df = value
+
+
+class GridRunnableDataset(GridRunnable):
+    def __init__(self,
+                 metadata: Struct,
+                 dataset_suffix: str,
+                 module_suffix: str
+                 ):
+
+        super().__init__(
+            metadata=metadata,
+            dataset_suffix=dataset_suffix,
+            module_suffix=module_suffix,
+        )
+
+        self._dataset_df = self._load_dataset()
+
+    def _load_dataset(self) -> dict[str, pd.DataFrame]:
+        dataset_df = {}
+
+        for tag in ["train", "test"]:
+            json_file = self.dataset_dir / tag / f"{self.metadata.dataset}.json"
+
+            if json_file.is_file():
+                dataset_df[tag] = pd.read_json(json_file)
+            else:
+                dataset_df[tag] = pd.DataFrame()
+
+        return dataset_df
+
+    @property
+    def dataset_df(self) -> pd.DataFrame:
+        return self._dataset_df
+
+    @property
+    def prompt(self) -> Path:
+        return self._prompt

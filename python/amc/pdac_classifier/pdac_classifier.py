@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Optional
 
 from abc import ABC, abstractmethod
 import pandas as pd
@@ -13,7 +13,7 @@ from langchain.schema import Document
 from cenai_core import Timer
 from cenai_core.dataman import concat_texts, dedent, Q, Struct
 from cenai_core.nlp import match_text
-from cenai_core.grid import GridRunnable, GridChainContext
+from cenai_core.grid import GridRunnableDataset, GridChainContext
 from cenai_core.pandas_helper import to_json
 
 
@@ -27,7 +27,7 @@ class PDACClassifyResult(BaseModel):
     )
 
 
-class PDACClassifier(GridRunnable, ABC):
+class PDACClassifier(GridRunnableDataset, ABC):
     logger_name = "cenai.amc.pdac_classifier"
 
     def __init__(self,
@@ -68,25 +68,38 @@ class PDACClassifier(GridRunnable, ABC):
         return sections if sections else ["본문", "결론"]
 
     def run(self, directive: dict[str, Any]) -> None:
-        self.classify(head=directive["head"])
+        self.classify(
+            head=directive.get("head"),
+            num_tries=directive.get("num_tries"),
+            recovery_time=directive.get("recovery_time"),
+        )
 
-    def classify(self, head: int = 0) -> None:
+    def classify(self,
+                 head: Optional[int],
+                 num_tries: Optional[int],
+                 recovery_time: Optional[int]
+                 ) -> None:
         self.INFO(f"{self.header} CLASSIFY proceed ....")
 
         testset_df = self.dataset_df["test"]
-        total = testset_df.shape[0]
 
-        if head > 0:
+        if isinstance(head, int):
             testset_df = testset_df.head(head)
+
+        if num_tries is None:
+            num_tries = 5
+
+        if recovery_time is None:
+            num_tries = 2
 
         context = self.classify_pre()
 
         self.result_df = testset_df.apply(
             self.classify_foreach,
-            category_text=self.stringfy_categories(),
             category_labels=self.get_category_labels(),
-            partial=testset_df.shape[0],
-            total=total,
+            total=testset_df.shape[0],
+            num_tries=num_tries,
+            recovery_time=recovery_time,
             context=context,
             axis=1,
         )
@@ -104,10 +117,10 @@ class PDACClassifier(GridRunnable, ABC):
 
     def classify_foreach(self,
                          field: pd.Series,
-                         category_text: str,
                          category_labels: list[str],
-                         partial: int,
                          total: int,
+                         num_tries: int,
+                         recovery_time: int,
                          context: GridChainContext
                          ) -> pd.Series:
 
@@ -115,38 +128,54 @@ class PDACClassifier(GridRunnable, ABC):
             f"{section}: {field[section]}" for section in self.sections
         ])
 
-        question = f"""
-        *사용자 질문*: 입력된 CT 판독문이 어떤 유형에 속하는지와 그 근거는 무엇입니까?
+        question = (
+            f"""
+            *User question*: What category does the input CT report belong to, and
+            what is the reasoning?
 
-        *CT 판독문 내용*:
-        {content}
-        """
+            *CT report content*:
+            {content}
+            """
+        if self.prompt.stem.endswith("en") else
+            f"""
+            *사용자 질문*: 입력된 CT 판독문이 어떤 유형에 속하는지와 그 근거는 무엇입니까?
 
-        timer = Timer()
+            *CT 판독문 내용*:
+            {content}
+            """
+        )
 
-        try:
-            answer = self.classifier_chain.invoke(
-                {
-                    "question": dedent(question),
-                    "category_text": category_text,
-                    "sections": "과 ".join(self.sections)
-                } | context.parameter
-            )
-        except BaseException:
-            self.ERROR(f"LLM({self.model.model_name}) internal error")
+        for i in range(num_tries):
+            try:
+                timer = Timer()
+
+                answer = self.classifier_chain.invoke(
+                    {
+                        "content": dedent(content),
+                        "question": dedent(question),
+                    } | context.parameter
+                )
+            except BaseException:
+                self.ERROR(f"LLM({self.model.model_name}) internal error")
+                self.ERROR(f"number of tries {i + 1}/{num_tries}")
+
+                Timer.delay(recovery_time)
+
+            else:
+                category = answer.category
+                reason = answer.reason
+                break
+        else:
+            self.ERROR(f"number of tries exceeds {num_tries}")
+
             category = "Not available"
             reason = f"LLM({self.model.model_name}) internal error"
-        else:
-            category = answer.category
-            reason = answer.reason
 
         timer.lap()
 
         entry = pd.Series({
             "grid_id": self.grid_id,
             "run_id": self.run_id,
-            "partial": partial,
-            "total": total,
         } | {
             section: field[section]
             for section in self.sections
@@ -169,7 +198,7 @@ class PDACClassifier(GridRunnable, ABC):
 
         self.INFO(
             f"{self.header} CLASSIFY proceed DONE "
-            f"[{field.name + 1:02d}/{partial:02d}] proceed DONE"
+            f"[{field.name + 1:02d}/{total:02d}] proceed DONE"
         )
         return entry
 
@@ -192,7 +221,7 @@ class PDACClassifier(GridRunnable, ABC):
                   ) -> None:
         self.INFO(f"{self.header} DATA saved ....")
 
-        if directive["save"]:
+        if directive.get("save", True):
             datastore_dir = self.datastore_dir / self.grid_id
             datastore_dir.mkdir(parents=True, exist_ok=True)
             data_json = datastore_dir / f"{self.run_id}.json"
@@ -225,14 +254,11 @@ class PDACClassifier(GridRunnable, ABC):
             f"{section_text}"
         )
 
-    def stringfy_categories(self) -> str:
-        prefix = self.metadata.dataset.split("_")[0]
-        txt_file = self.source_dir / f"{prefix}.txt"
-        text = txt_file.read_text('utf-8')
-        return text
-
     def get_category_labels(self) -> list[str]:
-        return self.dataset_df["train"]["유형"].unique().tolist() + ["Not available"]
+        return (
+            self.dataset_df["train"]["유형"].unique().tolist() +
+            ["Not available"]
+        )
 
     @staticmethod
     def concat_documents(documents: list[Document]) -> str:

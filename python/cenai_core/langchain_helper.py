@@ -1,3 +1,7 @@
+from typing import Any
+
+from pathlib import Path
+
 from langchain_community.chat_models import ChatOllama
 from langchain_core.language_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
@@ -6,6 +10,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import (ChatOpenAI, OpenAIEmbeddings)
 
 from cenai_core.hyperclovax import HyperCLOVAXChatModel, HyperCLOVAXEmbeddings
+from cenai_core.dataman import load_json_yaml
 
 default_model_name = "llama3.1:latest"
 
@@ -56,3 +61,16 @@ class LineListOutputParser(BaseOutputParser[list[str]]):
         ]
 
         return [line for line in lines if line]
+
+
+def load_chatprompt(prompt_file: Path) -> dict[str, Any]:
+    parameter = load_json_yaml(prompt_file)
+
+    messages = parameter.pop("messages", [])
+
+    parameter["messages"] = [
+        (message["role"], message["content"])
+        for message in messages
+    ]
+
+    return parameter

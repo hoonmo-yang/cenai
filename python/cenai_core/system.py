@@ -3,6 +3,7 @@ from datetime import timedelta
 import dotenv
 import os
 from pathlib import Path
+import time
 from timeit import default_timer
 
 
@@ -50,3 +51,7 @@ class Timer:
                 [days, hours, minutes, seconds], "dhms"
             ) if value > 0
         ])
+
+    @staticmethod
+    def delay(sec: int) -> None:
+        time.sleep(sec)

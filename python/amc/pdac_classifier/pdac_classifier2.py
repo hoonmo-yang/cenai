@@ -8,7 +8,7 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import dedent, Q, Struct
+from cenai_core.dataman import dedent, Struct
 from cenai_core.grid import GridChainContext
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
