@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
-            "args": ["-b", "amc-poc-2024-11-14.yaml"]
+            "args": ["-b", "amc-poc-2024-11-14"]
         }
     ]
 }

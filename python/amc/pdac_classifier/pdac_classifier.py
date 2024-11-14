@@ -68,29 +68,26 @@ class PDACClassifier(GridRunnableDataset, ABC):
         return sections if sections else ["본문", "결론"]
 
     def run(self, directive: dict[str, Any]) -> None:
-        self.classify(
-            head=directive.get("head"),
-            num_tries=directive.get("num_tries"),
-            recovery_time=directive.get("recovery_time"),
-        )
+        self.classify(**directive)
 
     def classify(self,
-                 head: Optional[int],
-                 num_tries: Optional[int],
-                 recovery_time: Optional[int]
+                 head: Optional[int] = None,
+                 num_tries: Optional[int] = None,
+                 recovery_time: Optional[int] = None,
+                 **kwargs
                  ) -> None:
         self.INFO(f"{self.header} CLASSIFY proceed ....")
 
         testset_df = self.dataset_df["test"]
 
-        if isinstance(head, int):
+        if head is not None:
             testset_df = testset_df.head(head)
 
         if num_tries is None:
             num_tries = 5
 
         if recovery_time is None:
-            num_tries = 2
+            recovery_time = 2
 
         context = self.classify_pre()
 
@@ -160,7 +157,8 @@ class PDACClassifier(GridRunnableDataset, ABC):
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
-
+            except KeyboardInterrupt as error:
+                raise error
             else:
                 category = answer.category
                 reason = answer.reason

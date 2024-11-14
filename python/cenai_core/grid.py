@@ -67,7 +67,7 @@ class GridRunner(Logger):
         self._prefix_dir = cenai_path("gridout")
         self._add_module_paths(module_paths)
 
-        self.P_GRID = re.compile(r"\w+_\d{4}-\d{2}-\d{2}_(\d+)")
+        self.P_GRID = re.compile(r"[a-zA-Z0-9-]+_\d{4}-\d{2}-\d{2}_(\d+)")
 
     @staticmethod
     def _add_module_paths(module_paths: list[Union[Path,str]]) -> None:
@@ -94,7 +94,10 @@ class GridRunner(Logger):
         top_dir = self.prefix_dir / config.name / "datastore"
         top_dir.mkdir(parents=True, exist_ok=True)
 
-        date = datetime.now().strftime("%Y-%m-%d")
+        date = config.directive.get("override_date")
+
+        if date is None:
+            date = datetime.now().strftime("%Y-%m-%d")
 
         numbers = [
             self._extract_grid_index(grid_dir)
@@ -355,10 +358,10 @@ class GridRunnable(Logger, ABC):
 
         self._run_id = (
             f"{self.metadata.dataset}{dataset_suffix}"
-            f"_{self.metadata.module}{module_suffix}"
+            f"_{self.metadata.model}_{self.metadata.module}{module_suffix}"
         )
 
-        self._grid_dir = self._metadata.grid.grid_dir
+        self._grid_dir = self.metadata.grid.grid_dir
         self._dataset_dir = self._grid_dir / "dataset"
         self._datastore_dir = self._grid_dir / "datastore"
 
@@ -372,10 +375,10 @@ class GridRunnable(Logger, ABC):
         self._prompt_dir = self._source_dir / "prompt"
 
         self._prompt = (
-            self._prompt_dir / self._metadata.prompt
+            self._prompt_dir / self.metadata.prompt
         )
 
-        LangchainHelper.bind_model(metadata.model)
+        LangchainHelper.bind_model(self.metadata.model)
 
         self._model = LangchainHelper.load_model()
         self._embeddings = LangchainHelper.load_embeddings()

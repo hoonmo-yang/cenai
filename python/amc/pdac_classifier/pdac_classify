@@ -33,11 +33,11 @@ class PDACClassification(Logger):
         return parser.parse_args()
 
     @classmethod
-    def _choose_grid_yamls(cls, batch: list[Path]) -> list[Path]:
-        if batch:
-            return [
-                cls.grid_dir / grid_yaml for grid_yaml in batch
-            ]
+    def _choose_grid_yamls(cls, batch: list[str]) -> list[Path]:
+        grid_yamls = [cls.grid_dir / f"{grid}.yaml" for grid in batch]
+
+        if grid_yamls:
+            return grid_yamls
 
         grid_yamls = list(cls.grid_dir.rglob("*.yaml"))
 
@@ -53,7 +53,7 @@ class PDACClassification(Logger):
         while True:
             answer = input(
                 f"\n{'\n'.join(items)}\n\n"
-                "Choose a grid by number(q for exit): "
+                "Choose a grid config by number(q for exit): "
             )
 
             answer = answer.strip()
