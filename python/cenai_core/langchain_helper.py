@@ -1,10 +1,12 @@
 from typing import Any
 
 from pathlib import Path
+from pydantic import BaseModel, Field
 
 from langchain_community.chat_models import ChatOllama
-from langchain_core.language_models import BaseChatModel
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import BaseOutputParser
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import (ChatOpenAI, OpenAIEmbeddings)
@@ -74,3 +76,16 @@ def load_chatprompt(prompt_file: Path) -> dict[str, Any]:
     ]
 
     return parameter
+
+
+class ChainContext(BaseModel):
+    parameter: dict[str, Any] = Field(
+        default={},
+    )
+
+    handler: dict[str, BaseCallbackHandler] = Field(
+        default={},
+    )
+
+    class Config:
+        arbitrary_types_allowed = True

@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import pandas as pd
 
-from cenai_core.grid import GridRunnable, GridChainContext
+from cenai_core.grid_ import GridRunnable, GridChainContext
 from cenai_core.dataman import Q, Struct
 
 

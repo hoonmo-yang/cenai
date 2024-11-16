@@ -1,0 +1,9 @@
+input_variables:
+- content
+
+content: |
+  *User question*: What category does the input CT report belong to,
+  and what is the reasoning?
+
+  *CT report content*:
+  {content}

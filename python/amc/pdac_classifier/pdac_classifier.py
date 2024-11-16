@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from abc import ABC, abstractmethod
 import pandas as pd
@@ -11,9 +11,14 @@ from langchain_core.runnables import Runnable, RunnableLambda
 from langchain.schema import Document
 
 from cenai_core import Timer
-from cenai_core.dataman import concat_texts, dedent, Q, Struct
+
+from cenai_core.dataman import (
+    concat_texts, load_text, optional, Q, Struct
+)
+
 from cenai_core.nlp import match_text
-from cenai_core.grid import GridRunnableDataset, GridChainContext
+from cenai_core.grid import EvaluateGridRunnable
+from cenai_core.langchain_helper import ChainContext
 from cenai_core.pandas_helper import to_json
 
 
@@ -27,13 +32,14 @@ class PDACClassifyResult(BaseModel):
     )
 
 
-class PDACClassifier(GridRunnableDataset, ABC):
+class PDACClassifier(EvaluateGridRunnable, ABC):
     logger_name = "cenai.amc.pdac_classifier"
 
     def __init__(self,
-                 metadata: Struct,
-                 module_suffix: str,
-                 sections: list[str]
+                 model,
+                 sections: Sequence[str],
+                 case_suffix: str,
+                 metadata: Struct
                  ):
 
         self._sections = self._get_sections(sections)
@@ -44,9 +50,10 @@ class PDACClassifier(GridRunnableDataset, ABC):
         ])
 
         super().__init__(
-            metadata=metadata,
+            model=model,
+            case_suffix=case_suffix,
             dataset_suffix=dataset_suffix,
-            module_suffix=module_suffix,
+            metadata=metadata,
         )
 
         self.metadata_df.loc[0, "sections"] = ",".join(self._sections)
@@ -67,7 +74,7 @@ class PDACClassifier(GridRunnableDataset, ABC):
         ]
         return sections if sections else ["본문", "결론"]
 
-    def run(self, directive: dict[str, Any]) -> None:
+    def run(self, **directive) -> None:
         self.classify(**directive)
 
     def classify(self,
@@ -83,11 +90,8 @@ class PDACClassifier(GridRunnableDataset, ABC):
         if head is not None:
             testset_df = testset_df.head(head)
 
-        if num_tries is None:
-            num_tries = 5
-
-        if recovery_time is None:
-            recovery_time = 2
+        num_tries = optional(num_tries, 5)
+        recovery_time = optional(recovery_time, 2)
 
         context = self.classify_pre()
 
@@ -98,7 +102,7 @@ class PDACClassifier(GridRunnableDataset, ABC):
             num_tries=num_tries,
             recovery_time=recovery_time,
             context=context,
-            axis=1,
+            axis=1
         )
 
         self.classify_post()
@@ -118,28 +122,16 @@ class PDACClassifier(GridRunnableDataset, ABC):
                          total: int,
                          num_tries: int,
                          recovery_time: int,
-                         context: GridChainContext
+                         context: ChainContext
                          ) -> pd.Series:
 
         content = "\n".join([
             f"{section}: {field[section]}" for section in self.sections
         ])
 
-        question = (
-            f"""
-            *User question*: What category does the input CT report belong to, and
-            what is the reasoning?
-
-            *CT report content*:
-            {content}
-            """
-        if self.prompt.stem.endswith("en") else
-            f"""
-            *사용자 질문*: 입력된 CT 판독문이 어떤 유형에 속하는지와 그 근거는 무엇입니까?
-
-            *CT 판독문 내용*:
-            {content}
-            """
+        question, *_ = load_text(
+            self.content_dir / self.question,
+            {"content": content},
         )
 
         for i in range(num_tries):
@@ -148,17 +140,19 @@ class PDACClassifier(GridRunnableDataset, ABC):
 
                 answer = self.classifier_chain.invoke(
                     {
-                        "content": dedent(content),
-                        "question": dedent(question),
+                        "content": content,
+                        "question": question,
                     } | context.parameter
                 )
+
+            except KeyboardInterrupt as error:
+                raise error
+
             except BaseException:
                 self.ERROR(f"LLM({self.model.model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
-            except KeyboardInterrupt as error:
-                raise error
             else:
                 category = answer.category
                 reason = answer.reason
@@ -172,8 +166,8 @@ class PDACClassifier(GridRunnableDataset, ABC):
         timer.lap()
 
         entry = pd.Series({
-            "grid_id": self.grid_id,
-            "run_id": self.run_id,
+            "suite_id": self.suite_id,
+            "case_id": self.case_id,
         } | {
             section: field[section]
             for section in self.sections
@@ -214,12 +208,12 @@ class PDACClassifier(GridRunnableDataset, ABC):
             f"{self.header} hit ratio: {hit_ratio:.1f}% ({hit}/{total})"
         )
 
-    def save_data(self,
-                  directive: dict[str, Any]
-                  ) -> None:
+    def save_data(self, **directive) -> None:
         self.INFO(f"{self.header} DATA saved ....")
 
-        if directive.get("save", True):
+        save = optional(directive.get("save"), True)
+
+        if save:
             datastore_dir = self.datastore_dir / self.grid_id
             datastore_dir.mkdir(parents=True, exist_ok=True)
             data_json = datastore_dir / f"{self.run_id}.json"
@@ -278,3 +272,11 @@ class PDACClassifier(GridRunnableDataset, ABC):
     @classifier_chain.setter
     def classifier_chain(self, chain: Runnable) -> None:
         self._classifier_chain = chain
+
+    @property
+    def question(self) -> str:
+        return self._question
+
+    @question.setter
+    def question(self, question: str) -> None:
+        self._question = question

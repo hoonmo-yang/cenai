@@ -407,4 +407,5 @@ freeze.bak
 model/
 
 !bin/
-gridout/
+artifact/
+backup/

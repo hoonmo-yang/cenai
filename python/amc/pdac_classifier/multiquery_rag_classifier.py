@@ -9,8 +9,8 @@ from langchain.retrievers import EnsembleRetriever
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import dedent, Struct
-from cenai_core.grid import GridChainContext
+from cenai_core.dataman import Struct
+from cenai_core.langchain_helper import ChainContext, load_chatprompt
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
@@ -35,35 +35,68 @@ class MultiqueryQuestionHandler(BaseCallbackHandler):
         return "\n".join(self._questions)
 
 
-class PDACClassifier7(PDACClassifier):
+class MultiQueryRagClassifier(PDACClassifier):
     def __init__(self,
-                 metadata: Struct,
+                 model: str,
                  sections: list[str],
                  topk: int,
                  num_questions: int,
-                 **parameter
+                 query_prompt: str,
+                 classify_prompt: str,
+                 question: str,
+                 metadata: Struct
                  ):
+
+        case_suffix = "_".join([
+            query_prompt.split(".")[0],
+            classify_prompt.split(".")[0],
+            question.split(".")[0],
+            f"k{topk:02d}",
+            f"q{num_questions:02d}",
+        ])
+
         super().__init__(
-            metadata=metadata,
-            module_suffix=f"k{topk:02d}_q{num_questions:02d}",
+            model=model,
             sections=sections,
+            case_suffix=case_suffix,
+            metadata=metadata,
         )
 
         self.INFO(f"{self.header} prepared ....")
 
         self._topk = topk
         self._num_questions = num_questions
+        self.question = question
 
-        self._metadata_df.loc[0, ["topk", "num_questions"]] = [
-            self._topk, self._num_questions,
+        self.metadata_df.loc[
+            0,
+            [
+                "topk",
+                "num_questions",
+                "query_prompt",
+                "classify_prompt",
+                "question",
+             ]
+        ] = [
+            topk,
+            num_questions,
+            query_prompt,
+            classify_prompt,
+            question,
         ]
 
         self.multiquery_question_handler = MultiqueryQuestionHandler()
 
         retriever = self._create_retriever()
-        multiquery_retriever = self._create_multiquery_retriever(retriever)
+        multiquery_retriever = self._create_multiquery_retriever(
+            query_prompt=query_prompt,
+            retriever=retriever,
+        )
 
-        self.classifier_chain = self._create_classifier_chain(multiquery_retriever)
+        self.classifier_chain = self._create_classifier_chain(
+            classify_prompt=classify_prompt,
+            retriever=multiquery_retriever,
+            )
 
         self.INFO(f"{self.header} prepared DONE")
 
@@ -104,35 +137,16 @@ class PDACClassifier7(PDACClassifier):
         return retriever
 
     def _create_multiquery_retriever(self,
+                                     query_prompt: str,
                                      retriever: BaseRetriever
                                      ) -> Runnable:
         self.INFO(f"{self.header} MULTI-QUERY RETRIEVER prepared ....")
 
-        prompt = """
-        사용자가 제시한 원 질문을 바탕으로, 췌장암 환자의 CT 판독문 유형을 예측하는 데 유용한
-        
-        다양한 관점의 질문을 {num_questions}개 생성하십시오. 이러한 질문은 벡터 DB에서 관련 문서를
-        
-        더 효과적으로 검색하기 위한 목적으로 작성되어야 합니다.
-
-        사용자의 질문에는 예측해야 할 CT 판독문 내용이 포함되어 있으며, 이 판독문은 {sections}으로 구성됩니다.
-
-        {sections}의 정보를 참고하여, CT 판독문의 유형 예측에 도움이 될 질문을 다양한 관점에서 만들어 주십시오.
-
-        각 질문은 개행 문자(\n)로 구분되어 한 줄씩 나열되도록 작성하십시오. 예시: foo\nbar\nbaz\n
-
-        *췌장암 환자의 CT 판독문 유형*:
-        {category_text}
-        
-        {question}
-        """
-
-        question_prompt = ChatPromptTemplate.from_messages(
-            ("human", dedent(prompt)),
-        )
+        prompt_args = load_chatprompt(self.content_dir / query_prompt)
+        query_prompt = ChatPromptTemplate(**prompt_args)
 
         multiquery_retriever = (
-            question_prompt |
+            query_prompt |
             self.model |
             StrOutputParser().with_config(
                 callbacks=[self.multiquery_question_handler],
@@ -144,44 +158,13 @@ class PDACClassifier7(PDACClassifier):
         return multiquery_retriever
 
     def _create_classifier_chain(self,
+                                 classify_prompt: str,
                                  retriever: BaseRetriever
                                  ) -> Runnable:
         self.INFO(f"{self.header} CHAIN prepared ....")
 
-        system_prompt = """
-        당신은 췌장암 환자의 CT 판독문이 특정 유형에 속하는지 예측하고,
-
-        그 이유를 설명하는 역할을 맡고 있습니다. 주어진 유형 설명과
-        
-        검색된 문맥을 바탕으로, 입력된 CT 판독문의 유형을 정확히 예측하십시오.
-        
-        또한, 예측한 근거를 명확하게 제시하여 왜 해당 유형에 속하는지 설명해 주세요.
-
-        *췌장암 환자의 CT 판독문 유형 설명*:
-        {category_text}
-
-        *검색된 문맥*:
-        {context}
-        """
-
-        human_prompt = """
-        {question}
-
-        *참고 사항*:
-        답변은 반드시 'PDACClassifyResult' 함수의 속성 형식에 맞게 출력하십시오.
-
-        유형 결정 근거는 한국어로 작성해 주세요.
-
-        전문 용어는 입력된 원문에서 사용된 형태를 그대로 유지해 주세요.
-
-        *유형*:
-        *근거*:
-        """
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", dedent(system_prompt)),
-            ("human", dedent(human_prompt)),
-        ])
+        prompt_args = load_chatprompt(self.content_dir / classify_prompt)
+        prompt = ChatPromptTemplate(**prompt_args)
 
         chain = (
             RunnablePassthrough().assign(
@@ -197,8 +180,8 @@ class PDACClassifier7(PDACClassifier):
         self.INFO(f"{self.header} CHAIN prepared DONE")
         return chain
 
-    def classify_pre(self) -> GridChainContext:
-        return GridChainContext(
+    def classify_pre(self) -> ChainContext:
+        return ChainContext(
             parameter={
                 "num_questions": self._num_questions,
             },

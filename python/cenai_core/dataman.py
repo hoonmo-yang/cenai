@@ -75,10 +75,24 @@ def dedent(source: str) -> str:
     return textwrap.dedent(source).strip()
 
 
+def ordinal(n: int) -> str:
+    suffix = (
+        "th" if 10 <= n % 100 <= 13 else
+        "st" if n % 10 == 1 else
+        "nd" if n % 10 == 2 else
+        "rd" if n % 10 == 3 else
+        "th"
+    )
+
+    return f"{n}{suffix}"
+
+
 class Struct:
     def __init__(self, data: dict[str, Any]):
         self.__dict__.update(data)
 
+    def __repr__(self) -> str:
+        return str(self.__dict__)
 
 def to_camel(literal: str) -> str:
     return "".join([
@@ -86,7 +100,36 @@ def to_camel(literal: str) -> str:
         for word in literal.split("_")
     ])
 
+
 def to_snake(literal: str) -> str:
     snake = re.sub(r"(?<=[a-z])([A-Z])", r'_\1', literal)
     snake = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", snake)
     return snake.lower()
+
+
+def optional(value: Any, other: Any) -> Any:
+    return other if value is None else value
+
+
+def load_text(src: Path,
+              input_variables: dict[str, str],
+              ) -> tuple[str, list[str]]:
+    deserial = load_json_yaml(src)
+
+    content = deserial.pop("content", "")
+    required_variables = deserial.pop("input_variables", [])
+
+    variables = {}
+    missings = []
+
+    for key in required_variables:
+        value = input_variables.get(key)
+
+        if value is None:
+            value = ""
+            missings.append()
+
+        variables[key] = value
+
+    result = content.format(**variables)
+    return result, missings

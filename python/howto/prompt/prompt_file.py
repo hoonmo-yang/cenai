@@ -13,7 +13,8 @@ model_name = "llama3.1:70b"
 LangchainHelper.bind_model(model_name)
 model = LangchainHelper.load_model()
 
-prompt_path = cenai_path("prompt") / "capital.yaml"
+content_dir = cenai_path("data/aux/example/content")
+prompt_path = content_dir / "pt-capital.yaml"
 prompt = load_prompt(str(prompt_path))
 
 chain = prompt | model | StrOutputParser()

@@ -1,0 +1,69 @@
+metadata:
+  version: v1
+  name: amc-poc-2024-11-14
+  institution: amc
+  task: pdac-classifier
+  tags:
+  - pdac-classifier
+  - amc-poc
+
+directive:
+  langsmith: false
+  replicate: false
+  fixed_date: "2024-11-13"
+  save: true
+  head:
+  num_tries: 5
+  recovery_time: 5
+
+  model:
+  - gpt-4o
+  - gpt-3.5-turbo
+
+dataset:
+  corpus:
+  - pdac-report4.json
+  test_size:
+  - 0.2
+  keywords:
+  - 유형
+  pick:
+  - 8
+
+templates:
+- module:
+  - reordered_rag_classifier
+  content_kr:
+  - classify_prompt
+  - question
+  parameter:
+- module:
+  - reordered_rag_classifier
+  content_en:
+  - classify_prompt
+  - question
+  parameter:
+
+parameter:
+  sections:
+  - [본문]
+  topk:
+  - 10
+
+content_kr:
+  classify_prompt:
+  - pt-cl1-kr.yaml
+  - pt-cl2-kr.yaml
+  - pt-cl3-kr.yaml
+  question:
+  - uq-cl1-kr.yaml
+
+content_en:
+  classify_prompt:
+  - pt-cl1-en.yaml
+  - pt-cl2-en.yaml
+  - pt-cl3-en.yaml
+  - pt-cl4-en.yaml
+  - pt-cl5-en.yaml
+  question:
+  - uq-cl1-en.yaml

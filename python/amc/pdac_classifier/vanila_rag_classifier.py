@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from operator import itemgetter
 
 from langchain_chroma import Chroma
@@ -7,32 +9,59 @@ from langchain_core.runnables import Runnable, RunnablePassthrough
 from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from cenai_core.dataman import dedent, Struct
-from cenai_core.grid import GridChainContext
+from cenai_core.dataman import Struct
+from cenai_core.langchain_helper import ChainContext, load_chatprompt
 
 from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
 
-class PDACClassifier3(PDACClassifier):
+class VanilaRagClassifier(PDACClassifier):
     def __init__(self,
-                 metadata: Struct,
+                 model: str,
                  sections: list[str],
                  topk: int,
-                 **parameter
+                 classify_prompt: str,
+                 question: str,
+                 metadata: Struct
                  ):
+
+        case_suffix = "_".join([
+            classify_prompt.split(".")[0],
+            question.split(".")[0],
+            f"k{topk:02d}",
+        ])
+
         super().__init__(
-            metadata=metadata,
-            module_suffix=f"k{topk:02d}",
+            model=model,
             sections=sections,
+            case_suffix=case_suffix,
+            metadata=metadata,
         )
 
         self.INFO(f"{self.header} prepared ....")
 
         self._topk = topk
-        self._metadata_df.loc[0, "topk"] = self._topk
+        self._question = question
+
+        self.metadata_df.loc[
+            0,
+            [
+                "topk",
+                "classify_prompt",
+                "question",
+            ]
+        ] = [
+            topk,
+            classify_prompt,
+            question,
+        ]
 
         retriever = self._create_retriever()
-        self.classifier_chain = self._create_classifier_chain(retriever)
+
+        self.classifier_chain = self._create_classifier_chain(
+            classify_prompt=classify_prompt,
+            retriever=retriever,
+        )
 
         self.INFO(f"{self.header} prepared DONE")
 
@@ -59,43 +88,17 @@ class PDACClassifier3(PDACClassifier):
             search_kwargs={"k": self._topk},
         )
 
-        self.INFO(f"{self.header} prepared DONE")
+        self.INFO(f"{self.header} RAG prepared DONE")
         return retriever
 
     def _create_classifier_chain(self,
+                                 classify_prompt: str,
                                  retriever: BaseRetriever
                                  ) -> Runnable:
         self.INFO(f"{self.header} CHAIN prepared ....")
 
-        system_prompt = """
-        당신은 췌장암 환자의 CT 판독문이 어떤 유형에 속하는지 예측하고,
-        그렇게 예측한 이유를 설명하는 역할을 맡고 있습니다.
-        당신은 유형의 설명과 검색된 문맥을 이용하여 입력된 CT 판독문의 유형을
-        맞추세요. 왜 그런지 유형에 대한 근거를 명확하게 제시해 주세요.
-
-        *유형의 설명*:
-        {category_text}
-
-        *문맥*:
-        {context}
-        """
-
-        human_prompt = """
-        {question}
-
-        다음 사항을 참고해 주세요:
-        1. 답변은 'PDAClassifierResult' 함수의 속성대로 출력되어야 합니다.
-        2. 유형 결정 근거는 한국어를 사용하세요.
-        3. 전문 용어는 입력에서 사용한 원문을 그대로 유지하세요.
-
-        *유형*:
-        *근거*:
-        """
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", dedent(system_prompt)),
-            ("human", dedent(human_prompt)),
-        ])
+        prompt_args = load_chatprompt(self.content_dir / classify_prompt)
+        prompt = ChatPromptTemplate(**prompt_args)
 
         chain = (
             RunnablePassthrough().assign(
@@ -110,5 +113,5 @@ class PDACClassifier3(PDACClassifier):
         self.INFO(f"{self.header} CHAIN prepared DONE")
         return chain
 
-    def classify_pre(self) -> GridChainContext:
-        return GridChainContext()
+    def classify_pre(self) -> ChainContext:
+        return ChainContext()

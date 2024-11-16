@@ -4,17 +4,17 @@ from pathlib import Path
 
 from cenai_core import Logger
 from cenai_core.dataman import Q
-from cenai_core.grid import GridEvaluator
+from cenai_core.grid import EvaluateGridRunner
 
 
 class PDACClassification(Logger):
-    grid_dir = Path("grid")
+    profile_dir = Path("profile")
     logger_name = "cenai.system"
 
     def __init__(self):
         super().__init__()
 
-        self._evaluator = GridEvaluator()
+        self._runner = EvaluateGridRunner()
 
     @classmethod
     def _get_args(cls) -> argparse.Namespace:
@@ -33,27 +33,29 @@ class PDACClassification(Logger):
         return parser.parse_args()
 
     @classmethod
-    def _choose_grid_yamls(cls, batch: list[str]) -> list[Path]:
-        grid_yamls = [cls.grid_dir / f"{grid}.yaml" for grid in batch]
+    def _choose_profile_yamls(cls, batch: list[str]) -> list[Path]:
+        profile_yamls = [
+            cls.profile_dir / f"{profile}.yaml" for profile in batch
+        ]
 
-        if grid_yamls:
-            return grid_yamls
+        if profile_yamls:
+            return profile_yamls
 
-        grid_yamls = list(cls.grid_dir.rglob("*.yaml"))
+        profile_yamls = list(cls.profile_dir.glob("*.yaml"))
 
-        if not grid_yamls:
-            cls.ERROR(f"no grid file in {Q(cls.grid_dir)}")
+        if not profile_yamls:
+            cls.ERROR(f"no profile file in {Q(cls.profile_dir)}")
             return []
 
         items = [
-            (f"[{i + 1}] {grid_yaml.stem}")
-            for i, grid_yaml in enumerate(grid_yamls)
+            (f"[{i + 1}] {profile_yaml.stem}")
+            for i, profile_yaml in enumerate(profile_yamls)
         ]
 
         while True:
             answer = input(
                 f"\n{'\n'.join(items)}\n\n"
-                "Choose a grid config by number(q for exit): "
+                "Choose a grid profile by number(q for exit): "
             )
 
             answer = answer.strip()
@@ -64,26 +66,26 @@ class PDACClassification(Logger):
             if answer.isdigit():
                 k = int(answer) - 1
                 if k < len(items):
-                    grid_yaml = grid_yamls[k]
+                    profile_yaml = profile_yamls[k]
                     break
 
             cls.ERROR(f"\nwrong selection - {Q(answer)}\n")
 
-        return [grid_yaml]
+        return [profile_yaml]
 
     def __call__(self) -> None:
         option = self._get_args()
 
-        grid_yamls = self._choose_grid_yamls(
+        profile_yamls = self._choose_profile_yamls(
             batch=option.batch,
         )
 
-        for grid_yaml in grid_yamls:
-            self.INFO(f"{Q(grid_yaml)} proceed ....")
+        for profile_yaml in profile_yamls:
+            self.INFO(f"PROFILE {Q(profile_yaml)} proceed ....")
 
-            self._evaluator(grid_yaml)
+            self._runner(profile_yaml)
 
-            self.INFO(f"{Q(grid_yaml)} proceed DONE")
+            self.INFO(f"PROFILE {Q(profile_yaml)} proceed DONE")
 
         self.INFO("bye")
 
