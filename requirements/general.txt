@@ -6,6 +6,7 @@ bitsandbytes
 bs4
 chromadb
 datasets
+docx2txt
 fastapi
 flake8
 gguf
@@ -24,10 +25,12 @@ openpyxl
 pandas
 pymupdf
 pypdf
+python-pptx
 rank_bm25
 rapidfuzz
 sentence-transformers
 sse_starlette
 streamlit
 transformers
+unstructured
 uvicorn

@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 
 from langchain_community.document_transformers import LongContextReorder
 from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.documents import Document
 from langchain_core.runnables import Runnable, RunnableLambda
-from langchain.schema import Document
 
 from cenai_core import Timer
 
@@ -59,7 +59,7 @@ class PDACClassifier(EvaluateGridRunnable, ABC):
         self.metadata_df.loc[0, "sections"] = ",".join(self._sections)
 
         self._classifier_chain = RunnableLambda(
-            lambda _: PDACClassifier(
+            lambda _: PDACClassifyResult(
                 category="Not available",
                 reason="PDACClassifier not implemented",
             )
@@ -214,9 +214,9 @@ class PDACClassifier(EvaluateGridRunnable, ABC):
         save = optional(directive.get("save"), True)
 
         if save:
-            datastore_dir = self.datastore_dir / self.grid_id
+            datastore_dir = self.datastore_dir / self.suite_id
             datastore_dir.mkdir(parents=True, exist_ok=True)
-            data_json = datastore_dir / f"{self.run_id}.json"
+            data_json = datastore_dir / f"{self.case_id}.json"
 
             to_json(data_json, self.metadata_df, self.result_df)
 

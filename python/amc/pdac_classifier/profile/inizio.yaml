@@ -1,0 +1,89 @@
+metadata:
+  version: v2
+  name: on-the-fly
+  institution: amc
+  task: pdac-summarizer
+  tags:
+  - inizio
+  - pdac-classifier
+  - amc-poc
+
+directive:
+  langsmith: false
+  replicate: false
+  fixed_date:
+  save: false
+  head: 
+  num_tries: 5
+  recovery_time: 5
+
+model:
+- gpt-4o
+
+corpora:
+- type:
+  - dataset
+  prefix:
+  - ""
+  stem:
+  - pdac-report4
+  aggregate:
+  - true
+- type:
+  - document
+  prefix:
+  - ""
+  stem:
+  - pdac-report4
+  extension:
+  - .json
+- type:
+  - dataset
+  prefix:
+  - ""
+  stem:
+  - pdac-report4
+  extension:
+  - .json
+  pick:
+  - 1
+  test_size:
+  - 0.2
+
+cases:
+- module:
+  - reordered_rag_classifier
+  content_kr:
+  - classify_prompt
+  - question
+  parameter:
+  - sections
+  - topk
+- module:
+  - reordered_rag_classifier
+  content_en:
+  - classify_prompt
+  - question
+  parameter:
+  - sections
+  - topk
+
+parameter:
+  sections:
+  - [본문]
+  topk:
+  - 10
+  num_questions:
+  - 5
+
+content_kr:
+  classify_prompt:
+  - pt-cl3-kr.yaml
+  question:
+  - uq-cl1-kr.yaml
+
+content_en:
+  classify_prompt:
+  - pt-cl3-en.yaml
+  question:
+  - uq-cl1-en.yaml

@@ -121,7 +121,7 @@ class ReorderedRagClassifier(PDACClassifier):
             ) |
             prompt |
             self.model.with_structured_output(PDACClassifyResult)
-        )
+        ) 
 
         self.INFO(f"{self.header} CHAIN prepared DONE")
         return chain
