@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="kr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PDAC Report</title>
+
+        <link rel="font-kr" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+        {css_content}
+    </head>
+    <body>
+        <h2>개요</h2>
+        <div class="section">
+            <table>
+            <tr>
+                <td>ID</td>
+                <td>{case_id}</td>
+            </tr>
+            <tr>
+                <td>정답 유형</td>
+                <td>{type}</td>
+            </tr>
+            <tr>
+                <td>예측 유형</td>
+                <td>{predicted_type}</td>
+            </tr>
+            <tr>
+                <td>적중 여부</td>
+                <td>{hit}</td>
+            </tr>
+            </table>
+        </div>
+
+        <h2>요약</h2>
+        <div class="section">
+            {summary}
+        </div>
+
+        <h2>Modality & Key Findings</h2>
+        <div class="section">
+            <table>
+                <tr>
+                    <td>Modality</td>
+                    <td>{modality}</td>
+                </tr>
+                <tr>
+                    <td>Treatment</td>
+                    <td>{key_findings__treatment}</td>
+                </tr>
+                <tr>
+                    <td>Primary tumor</td>
+                    <td>{key_findings__primary_tumor}</td>
+                </tr>
+                <tr>
+                    <td>Tumor-vascular contact</td>
+                    <td>{key_findings__tumor_vascular_contact}</td>
+                </tr>
+                <tr>
+                    <td style="text-align: right;">Specify</td>
+                    <td>{key_findings__tumor_vascular_contact_specify}</td>
+                </tr>
+
+                <tr>
+                    <td>Regional LN metastasis</td>
+                    <td>{key_findings__regional_ln_metastasis}</td>
+                </tr>
+                <tr>
+                    <td>distant_metastasis</td>
+                    <td>{key_findings__distant_metastasis}</td>
+                </tr>
+                <tr>
+                    <td>New lesion</td>
+                </tr>
+                <tr>
+                    <td style="text-align: right;">Location</td>
+                    <td>{key_findings__new_lesion__location}</td>
+                </tr>
+                <tr>
+                    <td style="text-align: right;">Confidence for metastasis</td>
+                    <td>{key_findings__new_lesion__confidence_for_metastasis}</td>
+                </tr>
+                <tr>
+                    <td>Overall tumor burden</td>
+                    <td>{key_findings__overall_tumor_burden}</td>
+                </tr>
+            </table>
+    </body>
+</html>

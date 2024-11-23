@@ -1,0 +1,29 @@
+skeleton:
+  summary: 연구결과 요약문
+  toc: 목   차
+  abstract: 연구개발과제의 개요
+  content: 연구개발과제의 수행 과정 및 수행 내용
+  outcome: 연구개발과제의 수행 결과 및 목표 달성 정도
+  contribution: 연구개발성과의 관련 분야에 대한 기여 정도
+  planning: 연구개발성과의 관리 및 활용 계획
+  checklist: 자체점검표
+  reference: 참고문헌
+summary:
+  abstract:
+    title: 연구개요
+    sections:
+    - abstract
+  outcome:
+    title: 연구 목표대비 연구결과
+    sections:
+    - outcome
+  expectation:
+    title: 연구개발성과의 활용 계획 및 기대효과(연구개발결과의 중요성)
+    sections:
+    - contribution
+    - management_plan
+  keyword:
+    title: 중심어
+    sections:
+    - abstract
+    - content

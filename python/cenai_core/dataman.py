@@ -3,6 +3,7 @@ from typing import Any, Hashable, Sequence
 import json
 from operator import attrgetter, itemgetter
 from pathlib import Path
+import random
 import re
 import textwrap
 import yaml
@@ -94,6 +95,34 @@ class Struct:
     def __repr__(self) -> str:
         return str(self.__dict__)
 
+    def __iter__(self):
+        return iter(self.__dict__)
+
+    def __getitem__(self, key):
+        return self.to_dict()[key]
+
+    def __or__(self, other):
+        return self.to_dict() | other
+
+    def __ror__(self, other):
+        return other | self.to_dict()
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.__dict__
+
+    def get(self, key, alternative=None):
+        return self.to_dict().get(key, alternative)
+
+    def items(self):
+        return self.to_dict().items()
+
+    def keys(self):
+        return self.to_dict().keys()
+
+    def values(self):
+        return self.to_dict().values()
+
+
 def to_camel(literal: str) -> str:
     return "".join([
         word[1:-1].upper() if word[0] == "*" else word.capitalize()
@@ -133,3 +162,37 @@ def load_text(src: Path,
 
     result = content.format(**variables)
     return result, missings
+
+
+def proportionalize(total_size: int,
+                    weights: Sequence[int]
+                    ) -> list[int]:
+    total_sum = sum(weights)
+
+    proportionals = [
+        int(total_size * (weight / total_sum)) for weight in weights 
+    ]
+
+    distributed_sum = sum(proportionals)
+    delta = total_size - distributed_sum
+
+    k = proportionals.index(max(proportionals))
+    proportionals[k] += delta
+
+    return proportionals
+
+
+def divide_evenly(total: int, n: int) -> list[int]:
+    q, r = divmod(total, n)
+
+    splits = [q] * n
+
+    indices = set(random.sample(range(n), r))
+
+    one_zeros = [1 if i in indices else 0 for i in range(n)]
+
+    splits = [
+        split + one_zero for split, one_zero in zip(splits, one_zeros)
+    ]
+
+    return splits

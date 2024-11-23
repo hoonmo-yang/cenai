@@ -1,0 +1,57 @@
+metadata:
+  version: v2
+  name: inizio
+  institution: nrf
+  task: paper-summarizer
+  tags:
+  - inizio
+  - paper-summarizer
+  - nrf-poc
+
+directive:
+  early_stop: true
+  langsmith: false
+  replicate: false
+  fixed_date:
+  save: false
+  num_tries: 5
+  recovery_time: 5
+
+model:
+- hcx-003
+
+corpora:
+- type:
+  - document
+  prefix:
+  - "sample"
+  stem:
+  - "*"
+  extension:
+  - .hwp
+  - .pdf
+
+cases:
+- module:
+  - stuff_summarizer
+  content_kr:
+  - summarize_prompt
+  - keyword_prompt
+  parameter:
+  - chunk_size
+  - chunk_overlap
+  - max_tokens
+
+parameter:
+  chunk_size:
+  - 500
+  chunk_overlap:
+  - 50
+  max_tokens:
+  - 600
+
+content_kr:
+  summmarize_prompt:
+  - pt-sum-kr.yaml
+  keyword_prompt:
+  - pt-kwd-kr.yaml

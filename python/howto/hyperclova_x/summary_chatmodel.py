@@ -1,10 +1,14 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-from cenai_core import HyperCLOVAXChatModel
+from cenai_core import LangchainHelper, load_dotenv
 
+model_name = "HCX-003"
 
-model = HyperCLOVAXChatModel()
+load_dotenv()
+
+LangchainHelper.bind_model(model_name)
+model = LangchainHelper.load_model()
 
 prompt = ChatPromptTemplate.from_messages([
     (

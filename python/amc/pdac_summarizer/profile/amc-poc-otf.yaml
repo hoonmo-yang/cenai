@@ -1,0 +1,71 @@
+metadata:
+  version: v2
+  name: amc-poc-otf
+  institution: amc
+  task: pdac-summarizer
+  tags:
+  - otf
+  - pdac-summarizer
+  - amc-poc
+
+directive:
+  langsmith: false
+  replicate: false
+  fixed_date:
+  save: false
+  num_selects: 1
+  num_tries: 5
+  recovery_time: 5
+
+export:
+  enable: false
+  stem:
+  columns:
+    all:
+  mode:
+  - all
+  extension:
+  - csv
+  - json
+  - xlsx
+
+model:
+- gpt-4o
+
+corpora:
+- mode:
+  - dataset
+  prefix:
+  - ""
+  stem:
+  - pdac-report4
+  extension:
+  - .json
+  seeds:
+  - 0
+  test_size:
+  - 0.2
+  keywords:
+  - ["유형"]
+
+cases:
+- module:
+  - reordered_rag_summarizer
+  content_kr:
+  - classify_prompt
+  - summarize_prompt
+  - question
+  parameter:
+  - topk
+
+parameter:
+  topk:
+  - 10
+
+content_kr:
+  classify_prompt:
+  - pt-cl3-kr.yaml
+  summarize_prompt:
+  - pt-sum1-kr.yaml
+  question:
+  - uq-cl1-kr.yaml

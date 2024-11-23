@@ -1,0 +1,8 @@
+input_variables:
+- content
+
+content: |
+  *사용자 질문*: 입력된 CT 판독문이 어떤 유형에 속합니까?
+
+  *CT 판독문 내용*:
+  {content}
