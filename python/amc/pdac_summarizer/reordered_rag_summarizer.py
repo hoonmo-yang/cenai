@@ -82,7 +82,6 @@ class ReorderedRagSummarizer(PDACSummarizer):
         
         self.INFO(f"{self.header} prepared DONE")
 
-
     def _build_retriever(self) -> BaseRetriever:
         self.INFO(f"{self.header} RAG prepared ....")
 
