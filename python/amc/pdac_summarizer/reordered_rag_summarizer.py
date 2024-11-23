@@ -1,6 +1,6 @@
 from operator import attrgetter, itemgetter
 
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import FAISS
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 from langchain_core.retrievers import BaseRetriever
@@ -82,6 +82,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
         
         self.INFO(f"{self.header} prepared DONE")
 
+
     def _build_retriever(self) -> BaseRetriever:
         self.INFO(f"{self.header} RAG prepared ....")
 
@@ -100,7 +101,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
         )
         bm25_retriever.k = 1
 
-        vectorstore = Chroma.from_documents(
+        vectorstore = FAISS.from_documents(
             documents=splits,
             embedding=self.embeddings,
         )

@@ -22,7 +22,7 @@ with st.sidebar:
     seeds = st.number_input(
         "Enter a random number",
         min_value=0,
-        max_value=10,
+        max_value=1000,
         value=0,
         step=1,
     )
@@ -49,19 +49,32 @@ with st.sidebar:
     profile["corpora"][0]["extension"] = [Path(pdac_report).suffix]
     profile["corpora"][0]["seeds"] = [seeds]
 
+    run_button = st.button("Run")
+
+states = {}
+
 
 @st.cache_data
 def get_result(profile) -> pd.DataFrame:
+    st.cache_data.clear()
+    st.cache_resource.clear()
+
     runner = GridRunner(profile)
     result_df = runner.yield_result()
+
     return result_df
 
 
-result_df = get_result(profile)
+if run_button:
+    result_df = get_result(profile)
 
-types = result_df["정답"].tolist()
-bodies = result_df["본문"].tolist()
-htmls = result_df["html"].tolist()
+    states["type"] = result_df["정답"].tolist()
+    states["body"] = result_df["본문"].tolist()
+    states["html"] = result_df["html"].tolist()
+else:
+    for key in ["type", "body", "html"]:
+        if key not in states:
+            states[key] = []
 
 choice = 0
 
@@ -69,18 +82,13 @@ with st.sidebar:
     st.header("선택")
     choice = st.selectbox(
         "Choose a report:",
-        range(len(types)), format_func=lambda i: types[i]
+        range(len(states["type"])), format_func=lambda i: states["type"][i]
     )
 
     st.header("본문")
-    if bodies:
-        st.write(bodies[choice])
-
-    if st.button("Clear cache"):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.success("Cache cleared!")
+    if states["body"]:
+        st.write(states["body"][choice])
 
 st.header("요약")
-if htmls:
-    components.html(htmls[choice], height=4800)
+if states["html"]:
+    components.html(states["html"][choice], height=4800)
