@@ -92,7 +92,7 @@ class PDACReportTemplate4(PDACReportTemplate):
     )
 
 
-class PDACReportTemplateFail(PDACReportTemplate):
+class PDACReportTemplateFail(PDACReportBaseModel):
     class Config:
         title = "Missing template for a report on pancreatic cancer diagnostic imaging"
 

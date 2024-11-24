@@ -85,7 +85,11 @@ class PDACSummarizer(GridRunnable):
             return testset_df
 
         sample_df = testset_df.groupby(["유형"]).apply(
-                lambda field: field.sample(min(len(field), num_selects))
+                lambda field:
+                    field.sample(
+                        min(len(field), num_selects),
+                        random_state=0,
+                    )
             ).droplevel(0).reset_index().rename(columns={"index": "sample"})
 
         return sample_df
@@ -138,9 +142,7 @@ class PDACSummarizer(GridRunnable):
         pv_type = match_text(pdac_report.type, labels)
         sample = field["sample"]
 
-        summary = pdac_report.model_dump(
-            exclude=["type", "message"],
-        )
+        summary = pdac_report.model_dump()
 
         is_hit = gt_type == pv_type
 
@@ -186,8 +188,8 @@ class PDACSummarizer(GridRunnable):
                        pv_type: str,
                        is_hit: bool
                        ) -> str:
-        index = self.get_type_label_index(gt_type) + 1
 
+        index = self.get_type_label_index(pv_type) + 1
         html_file = self.html_dir / f"html_template_type{index}.html"
         html_text = html_file.read_text()
 
@@ -202,10 +204,6 @@ class PDACSummarizer(GridRunnable):
             "pv_type": pv_type,
             "hit": "HIT" if is_hit else "MISS",
         } | summary_args
-
-        self.INFO("SUMMARY arguments:")
-        for key, value in summary_args.items():
-            self.INFO(f"{key}:{value}")
 
         html = html_text.format(**html_args)
         return html
