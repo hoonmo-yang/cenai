@@ -17,7 +17,6 @@ from cenai_core.system import cenai_path
 class GridRunnable(Logger, ABC):
     logger_name = "cenai.grid_runnable"
 
-    log_dir = cenai_path("log")
     data_dir = cenai_path("data")
 
     def __init__(self,
@@ -31,10 +30,12 @@ class GridRunnable(Logger, ABC):
         self._suite_id = self.metadata.suite.id
         self._suite_prefix = self.metadata.suite.prefix
 
+        prefix_dir = self.metadata.suite.prefix_dir
+        self._log_dir = prefix_dir / "log"
+        self._corpus_dir = prefix_dir / "corpus"
+
         log_file = Path(
-            self.log_dir /
-            self.suite_prefix /
-            f"{self.suite_id}.log"
+            self.log_dir / f"{self.suite_id}.log"
         )
 
         super().__init__(
@@ -43,15 +44,13 @@ class GridRunnable(Logger, ABC):
 
         self._case_id = "_".join([
             token for token in [
+                self.metadata.corpus_stem,
                 corpus_suffix,
                 model,
                 self.metadata.module,
                 case_suffix,
             ] if token
         ])
-
-        prefix_dir = self.metadata.suite.prefix_dir
-        self._corpus_dir = prefix_dir / "corpus"
 
         self._dataset_df = self._load_dataset()
         self._document_files = self._collect_document_files()
@@ -140,6 +139,10 @@ class GridRunnable(Logger, ABC):
     @property
     def corpus_dir(self) -> Path:
         return self._corpus_dir
+
+    @property
+    def log_dir(self) -> Path:
+        return self._log_dir
 
     @property
     def source_dir(self) -> Path:

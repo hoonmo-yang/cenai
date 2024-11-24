@@ -12,6 +12,18 @@
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
             "args": ["-b", "inizio"]
+        },
+        {
+            "name": "Python Debugger: Streamlit",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/home/itcen/miniforge3/envs/cenai/bin/streamlit",
+            "args": [
+                "run",
+                "${file}"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
         }
     ]
 }

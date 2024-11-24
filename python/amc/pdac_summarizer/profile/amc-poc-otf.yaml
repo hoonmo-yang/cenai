@@ -9,7 +9,7 @@ metadata:
   - amc-poc
 
 directive:
-  langsmith: false
+  langsmith: true
   replicate: false
   fixed_date:
   save: false

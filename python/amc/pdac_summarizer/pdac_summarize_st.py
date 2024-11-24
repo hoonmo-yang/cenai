@@ -7,12 +7,18 @@ from cenai_core import cenai_path
 from cenai_core.dataman import load_json_yaml
 from cenai_core.grid import GridRunner
 
+if "result" not in st.session_state:
+    st.session_state.result = {
+        "gt_type": [],
+        "content": [],
+        "html": [],
+    }
 
 profile_dir = cenai_path("python/amc/pdac_summarizer/profile")
 profile_file = profile_dir / "amc-poc-otf.yaml"
 
 with st.sidebar:
-    st.header("Parameter settings")
+    st.subheader("Parameter settings")
 
     model = st.selectbox(
         "Select LLM model", 
@@ -49,46 +55,63 @@ with st.sidebar:
     profile["corpora"][0]["extension"] = [Path(pdac_report).suffix]
     profile["corpora"][0]["seeds"] = [seeds]
 
-    run_button = st.button("Run")
-
-states = {}
-
+    run_button = st.button("Run", use_container_width=True)
 
 @st.cache_data
 def get_result(profile) -> pd.DataFrame:
-    st.cache_data.clear()
-    st.cache_resource.clear()
-
     runner = GridRunner(profile)
     result_df = runner.yield_result()
 
     return result_df
 
-
 if run_button:
     result_df = get_result(profile)
 
-    states["type"] = result_df["정답"].tolist()
-    states["body"] = result_df["본문"].tolist()
-    states["html"] = result_df["html"].tolist()
-else:
-    for key in ["type", "body", "html"]:
-        if key not in states:
-            states[key] = []
+    result = {
+        key: result_df[key].tolist()
+        for key in ["gt_type", "content", "html"]
+    }
+    st.session_state.result = result
 
-choice = 0
+else:
+    result = st.session_state.result
 
 with st.sidebar:
-    st.header("선택")
+    st.subheader("선택")
     choice = st.selectbox(
         "Choose a report:",
-        range(len(states["type"])), format_func=lambda i: states["type"][i]
+        range(len(result["gt_type"])),
+        format_func=lambda i: result["gt_type"][i]
     )
 
-    st.header("본문")
-    if states["body"]:
-        st.write(states["body"][choice])
+    if result["content"]:
+        st.subheader("본문")
 
-st.header("요약")
-if states["html"]:
-    components.html(states["html"][choice], height=4800)
+        st.markdown(
+            """
+            <style>
+            .custom-text-box {
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                padding: 15px;
+                background-color: #f9f9f9;
+                font-size: 16px;
+                line-height: 1.6;
+                color: #333;
+                overflow-wrap: break-word;
+                text-align: justify;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            f"""<div class="custom-text-box">
+                {result['content'][choice]}</div>""",
+            unsafe_allow_html=True
+        )
+
+st.subheader("요약")
+if result["html"]:
+    components.html(result["html"][choice], height=4800)

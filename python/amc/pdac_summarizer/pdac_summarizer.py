@@ -85,8 +85,8 @@ class PDACSummarizer(GridRunnable):
             return testset_df
 
         sample_df = testset_df.groupby(["유형"]).apply(
-            lambda field: field.sample(min(len(field), num_selects))
-        ).reset_index(drop=True)
+                lambda field: field.sample(min(len(field), num_selects))
+            ).droplevel(0).reset_index().rename(columns={"index": "sample"})
 
         return sample_df
 
@@ -134,62 +134,80 @@ class PDACSummarizer(GridRunnable):
 
         timer.lap()
 
-        self.INFO(
-            f"{self.header} SUMMARIZE proceed DONE "
-            f"[{int(field.name) + 1:02d}/{total:02d}] proceed DONE"
-        )
-
-        type_ = field["유형"]
-        predict_type = match_text(pdac_report.type, labels)
+        gt_type = field["유형"]
+        pv_type = match_text(pdac_report.type, labels)
+        sample = field["sample"]
 
         summary = pdac_report.model_dump(
             exclude=["type", "message"],
         )
 
-        hit = type_ == predict_type
+        is_hit = gt_type == pv_type
 
         html = self._generate_html(
-            css_text, summary, type_, predict_type, hit,
+            sample=sample,
+            css_text=css_text,
+            summary=summary,
+            gt_type=gt_type,
+            pv_type=pv_type,
+            is_hit=is_hit,
         )
 
         entry = pd.Series({
             "suite_id": self.suite_id,
             "case_id": self.case_id,
-            "정답": type_,
-            "예측": predict_type,
-            "요약": summary,
-            "본문": content,
+            "gt_type": gt_type,
+            "pv_type": pv_type,
+            "summary": summary,
+            "content": content,
+            "sample": sample,
             "html": html,
-            "hit": hit,
+            "hit": is_hit,
             "time": timer.seconds,
         })
 
+        self.INFO(
+            f"SAMPLE {int(sample):03d} GT:{gt_type} PV:{pv_type} "
+            f"[{'HIT' if is_hit else "MISS"}] "
+            f"TIME: {timer.seconds:.1f}s"
+        )
+
+        self.INFO(
+            f"{self.header} SUMMARIZE proceed DONE "
+            f"[{int(field.name) + 1:02d}/{total:02d}] proceed DONE"
+        )
         return entry
 
     def _generate_html(self, 
+                       sample: int,
                        css_text: str,
                        summary: dict[str, Any],
-                       type_: str,
-                       predict_type: str,
-                       hit: bool
+                       gt_type: str,
+                       pv_type: str,
+                       is_hit: bool
                        ) -> str:
-        k = self.get_type_label_index(type_)
-        html_file = self.html_dir / f"html_template_type{k + 1}.html"
+        index = self.get_type_label_index(gt_type) + 1
+
+        html_file = self.html_dir / f"html_template_type{index}.html"
         html_text = html_file.read_text()
 
         summary_df = pd.json_normalize(summary, sep="__")
+        summary_args = summary_df.to_dict(orient="records")[0]
 
         html_args = {
             "css_content": css_text,
             "case_id": self.case_id,
-            "type": type_,
-            "predicted_type": predict_type,
-            "hit": "Hit" if hit else "Miss",
+            "sample": sample,
+            "gt_type": gt_type,
+            "pv_type": pv_type,
+            "hit": "HIT" if is_hit else "MISS",
+        } | summary_args
 
-        } | summary_df.to_dict(orient="records")[0]
+        self.INFO("SUMMARY arguments:")
+        for key, value in summary_args.items():
+            self.INFO(f"{key}:{value}")
 
         html = html_text.format(**html_args)
-
         return html
 
     def stringfy_trainsets(self) -> str:
