@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from cenai_core import Timer
-from cenai_core.dataman import concat_texts, load_text, optional, Struct
+from cenai_core.dataman import concat_texts, load_text, optional, Q, Struct
 from cenai_core.grid import GridRunnable
 from cenai_core.nlp import match_text
 from amc.pdac_summarizer.pdac_template import PDACReportTemplateFail
@@ -140,7 +140,7 @@ class PDACSummarizer(GridRunnable):
 
         gt_type = field["유형"]
         pv_type = match_text(pdac_report.type, labels)
-        sample = field["sample"]
+        sample = int(field["sample"])
 
         summary = pdac_report.model_dump()
 
@@ -169,7 +169,7 @@ class PDACSummarizer(GridRunnable):
         })
 
         self.INFO(
-            f"SAMPLE {int(sample):03d} GT:{gt_type} PV:{pv_type} "
+            f"SAMPLE {int(sample):03d} GT:{Q(gt_type)} PV:{Q(pv_type)} "
             f"[{'HIT' if is_hit else "MISS"}] "
             f"TIME: {timer.seconds:.1f}s"
         )

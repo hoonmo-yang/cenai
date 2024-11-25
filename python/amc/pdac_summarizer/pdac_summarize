@@ -1,102 +1,25 @@
 #!/usr/bin/env python3
-import argparse
-from pathlib import Path
 
 from cenai_core import Logger
 from cenai_core.dataman import Q
-from cenai_core.grid import GridRunner
-
-
+from cenai_core.grid import GridCLI
 
 class PDACSummarization(Logger):
-    profile_dir = Path("profile")
     logger_name = "cenai.system"
 
-    def __init__(self):
-        super().__init__()
-
     @classmethod
-    def _get_args(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(
-            description="PDAC summarizer"
-        )
-
-        parser.add_argument(
-            "-b",
-            "--batch",
-            nargs="+",
-            default=[],
-            help="batch mode"
-        )
-
-        return parser.parse_args()
-
-    @classmethod
-    def _choose_profile_yamls(cls, batch: list[str]) -> list[Path]:
-        profile_yamls = [
-            cls.profile_dir / f"{profile}.yaml" for profile in batch
-        ]
-
-        if profile_yamls:
-            return profile_yamls
-
-        profile_yamls = list(cls.profile_dir.glob("*.yaml"))
-
-        if not profile_yamls:
-            cls.ERROR(f"no profile file in {Q(cls.profile_dir)}")
-            return []
-
-        items = [
-            (f"[{i + 1}] {profile_yaml.stem}")
-            for i, profile_yaml in enumerate(profile_yamls)
-        ]
-
-        while True:
-            answer = input(
-                f"\n{'\n'.join(items)}\n\n"
-                "Choose a grid profile by number(q for exit): "
+    def main(cls) -> None:
+        try:
+            pdac_summarize = GridCLI(
+                title="PDAC summarizer",
             )
 
-            answer = answer.strip()
+            pdac_summarize()
 
-            if answer.lower() == "q":
-                return []
-
-            if answer.isdigit():
-                k = int(answer) - 1
-                if k < len(items):
-                    profile_yaml = profile_yamls[k]
-                    break
-
-            cls.ERROR(f"\nwrong selection - {Q(answer)}\n")
-
-        return [profile_yaml]
-
-    def __call__(self) -> None:
-        option = self._get_args()
-
-        profile_yamls = self._choose_profile_yamls(
-            batch=option.batch,
-        )
-
-        for profile_yaml in profile_yamls:
-            self.INFO(f"PROFILE {Q(profile_yaml)} proceed ....")
-
-            runner = GridRunner(profile_yaml)
-
-            runner()
-            runner.save()
-            runner.export()
-
-            self.INFO(f"PROFILE {Q(profile_yaml)} proceed DONE")
-
-        self.INFO("bye")
+        except Exception as e:
+            cls.ERROR(e)
+            exit(-1)
 
 
 if __name__ == "__main__":
-    try:
-        pdac_summarize = PDACSummarization()
-        pdac_summarize()
-
-    except Exception as e:
-        PDACSummarization.ERROR(e)
+    PDACSummarization.main()

@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from xml.etree.ElementTree import parse, tostring
 import zipfile
+import warnings
 
 from llama_index.readers.file import HWPReader
 
@@ -18,6 +19,12 @@ from langchain_community.document_loaders import (
     UnstructuredHTMLLoader,
     UnstructuredMarkdownLoader,
     UnstructuredPowerPointLoader
+)
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"Field \"model_name\" in ClovaXEmbeddings "
+            r"has conflict with protected namespace \"model_\"."
 )
 
 from langchain_community.embeddings import ClovaXEmbeddings
@@ -32,8 +39,8 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from cenai_core.dataman import load_json_yaml
 
-default_model_name = "llama3.1:latest"
 
+default_model_name = "llama3.1:latest"
 
 class LangchainHelper:
     model_name = default_model_name
