@@ -30,7 +30,7 @@ class PDACSummarizer(GridRunnable):
                  case_suffix: str,
                  metadata: Struct
                  ):
-        corpus_part = self.metadata.corpus_stem
+        corpus_part = metadata.corpus_stem
 
         super().__init__(
             model=model,
