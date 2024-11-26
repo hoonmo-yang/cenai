@@ -44,10 +44,20 @@ class QADatasetGenerator(GridRunnable):
             f"tk{max_tokens}",
         ])
 
+        corpus_part = "_".join([
+            metadata.corpus_prefix,
+            "-".join(
+                [stem for stem in metadata.corpus_stem if stem]
+            ),
+            "-".join([
+                extension[1:] for extension in metadata.corpus_ext
+                if extension]),
+        ])
+
         super().__init__(
             model=model,
             case_suffix=case_suffix,
-            corpus_suffix=metadata.corpus_prefix,
+            corpus_part=corpus_part,
             metadata=metadata,
         )
 
@@ -76,9 +86,9 @@ class QADatasetGenerator(GridRunnable):
         )
 
     def run(self, **directive) -> None:
-        self.generate_qa_dataset(**directive)
+        self._generate_qa_dataset(**directive)
 
-    def generate_qa_dataset(
+    def _generate_qa_dataset(
             self,
             num_tries: Optional[int] = None,
             recovery_time: Optional[int] = None,
@@ -117,7 +127,7 @@ class QADatasetGenerator(GridRunnable):
                     )
                     continue
 
-                dataframe = self._generate_qa_dataset(
+                some_result_df = self._generate_qa_dataset_foreach(
                     document=document,
                     size=split_size,
                     num_tries=num_tries,
@@ -125,13 +135,20 @@ class QADatasetGenerator(GridRunnable):
                     file_=file_,
                 )
 
+                if some_result_df is None:
+                    self.INFO(
+                        f"{self.header} DOCUMENT [{j + 1}/{total}] "
+                        f"size: {split_size} SKIP"
+                    )
+                    continue
+
                 self.INFO(
                     f"{self.header} DOCUMENT [{j + 1}/{total}] "
                     f"size: {split_size} DONE"
                 )
 
                 result_df = pd.concat(
-                    [result_df, dataframe], axis=0
+                    [result_df, some_result_df], axis=0
                 )
 
             self.result_df = pd.concat(
@@ -168,14 +185,14 @@ class QADatasetGenerator(GridRunnable):
 
         return split_documents
 
-    def _generate_qa_dataset(
+    def _generate_qa_dataset_foreach(
             self,
             document: Document,
             size: int,
             num_tries: int,
             recovery_time: int,
             file_: Path
-        ) -> pd.DataFrame:
+        ) -> Optional[pd.DataFrame]:
         for i in range(num_tries):
             try:
                 timer = Timer()
@@ -200,7 +217,7 @@ class QADatasetGenerator(GridRunnable):
                 break
         else:
             self.ERROR(f"number of tries exceeds {num_tries}")
-            response = ""
+            return None
 
         timer.lap()
 

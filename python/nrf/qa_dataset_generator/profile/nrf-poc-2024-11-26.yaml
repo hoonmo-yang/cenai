@@ -1,17 +1,17 @@
 metadata:
   version: v2
-  name: nrf-poc-2024-11-21
+  name: nrf-poc-2024-11-26
   institution: nrf
   task: qa-dataset-generator
   tags:
   - qa-dataset-generator
   - nrf-poc
-  - "2024-11-21"
+  - "2024-11-26"
 
 directive:
   langsmith: false
   replicate: false
-  fixed_date:
+  fixed_date: "2024-11-26"
   save: true
   num_tries: 5
   recovery_time: 5
@@ -26,9 +26,9 @@ export:
   mode:
   - result
   extension:
-  - csv
-  - json
-  - xlsx
+  - .csv
+  - .json
+  - .xlsx
 
 model:
 - hcx-003
@@ -62,7 +62,7 @@ parameter:
   max_tokens:
   - 600
   num_datasets:
-  - 100
+  - 10
 
 content_kr:
   generate_prompt:

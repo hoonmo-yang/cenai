@@ -1,14 +1,19 @@
 from __future__ import annotations
+from typing import Optional
 
 from abc import ABC, abstractmethod
 from itertools import product
 import pandas as pd
 from pathlib import Path
 
+from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 
-from cenai_core.dataman import load_json_yaml, Q, Struct
+from cenai_core.dataman import (
+    concat_texts, load_json_yaml, optional, Q, Struct
+)
+
 from cenai_core.langchain_helper import LangchainHelper
 from cenai_core.logger import Logger
 from cenai_core.system import cenai_path
@@ -22,7 +27,7 @@ class GridRunnable(Logger, ABC):
     def __init__(self,
                  model: str,
                  case_suffix: str,
-                 corpus_suffix: str,
+                 corpus_part: str,
                  metadata: Struct
                  ):
         self._metadata = metadata
@@ -44,8 +49,7 @@ class GridRunnable(Logger, ABC):
 
         self._case_id = "_".join([
             token for token in [
-                self.metadata.corpus_stem,
-                corpus_suffix,
+                corpus_part,
                 model,
                 self.metadata.module,
                 case_suffix,
@@ -131,6 +135,37 @@ class GridRunnable(Logger, ABC):
             )
 
         return document_files
+
+    @staticmethod
+    def select_samples(source_df: pd.DataFrame,
+                       num_selects: Optional[int],
+                       keywords: list[str],
+                       ) -> pd.DataFrame:
+        num_selects = optional(num_selects, 0)
+
+        sample_df = (
+            source_df if not num_selects else
+
+            source_df.sample(
+                min(-num_selects, source_df.shape[0]),
+                random_state=0,
+            ) if num_selects < 0 else
+
+            source_df.groupby(keywords[:-1]).apply(
+                lambda field:
+                    field.sample(
+                        min(field.shape[0], num_selects),
+                        random_state=0,
+                    )
+            ).reset_index(drop=True)
+
+        ).sort_values(by=keywords)
+
+        return sample_df
+
+    @staticmethod
+    def concat_documents(documents: list[Document]) -> str:
+        return concat_texts(documents, "page_content", "\n\n")
 
     @abstractmethod
     def run(self, **directive) -> None:

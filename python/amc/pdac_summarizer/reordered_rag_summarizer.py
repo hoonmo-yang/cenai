@@ -2,6 +2,7 @@ from operator import attrgetter, itemgetter
 
 from langchain_community.vectorstores import FAISS
 from langchain_community.retrievers import BM25Retriever
+from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 from langchain_core.retrievers import BaseRetriever
 
@@ -11,7 +12,6 @@ from langchain_core.runnables import (
 
 from langchain.output_parsers import PydanticOutputParser
 from langchain.retrievers import EnsembleRetriever
-from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from cenai_core.dataman import Struct

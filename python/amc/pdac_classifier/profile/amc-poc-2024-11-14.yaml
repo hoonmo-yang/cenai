@@ -1,5 +1,5 @@
 metadata:
-  version: v1
+  version: v2
   name: amc-poc-2024-11-14
   institution: amc
   task: pdac-classifier
@@ -12,25 +12,41 @@ directive:
   replicate: false
   fixed_date: "2024-11-13"
   save: true
-  head:
+  num_selects:
   num_tries: 5
   recovery_time: 5
 
-  model:
+export:
+  enable: false
+  stem:
+  columns:
+    all:
+  mode:
+  - all
+  extension:
+  - .xlsx
+
+model:
   - gpt-4o
   - gpt-3.5-turbo
 
-dataset:
-  corpus:
-  - pdac-report4.json
+corpora:
+- mode:
+  - dataset
+  prefix:
+  - ""
+  stem:
+  - pdac-report4
+  extension:
+  - .json
+  seeds:
+  - [[0, 2]]
   test_size:
   - 0.2
   keywords:
-  - 유형
-  pick:
-  - 8
+  - ["유형"]
 
-templates:
+cases:
 - module:
   - reordered_rag_classifier
   content_kr:

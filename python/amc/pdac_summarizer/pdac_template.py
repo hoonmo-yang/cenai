@@ -310,10 +310,9 @@ class PrimaryTumor(PDACReportBaseModel):
         description = "Location of primary tumor",
     )
 
-    size: int = Field(
+    size: float = Field(
         ...,
-        description = """Largest diameter of the detected primary tumors
-                         (in centimeters).""",
+        description = """Largest diameter of the detected primary tumors (in centimeters)""",
     )
 
 

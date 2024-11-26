@@ -33,15 +33,15 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
 
         self.metadata_df.loc[0, "generate_prompt"] = generate_prompt
 
-        self.generate_chain = self._create_generate_chain(
+        self.generate_chain = self._build_generate_chain(
             generate_prompt=generate_prompt,
         )
 
         self.INFO(f"{self.header} prepared DONE")
 
-    def _create_generate_chain(self,
-                               generate_prompt: str
-                               ) -> Runnable:
+    def _build_generate_chain(self,
+                              generate_prompt: str
+                              ) -> Runnable:
         self.INFO(f"{self.header} CHAIN prepared ....")
 
         prompt_args = load_chatprompt(self.content_dir / generate_prompt)

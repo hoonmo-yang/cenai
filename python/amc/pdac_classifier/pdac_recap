@@ -1,94 +1,35 @@
 #!/usr/bin/env python3
-import argparse
-from pathlib import Path
 
-from cenai_core import cenai_path, Logger
-from cenai_core.dataman import Q
+from cenai_core import Logger
+from cenai_core.grid import GridCLI
 
 from amc.pdac_classifier import PDACRecapper
 
 
 class PDACRecap(Logger):
     logger_name = "cenai.system"
-    base_dir = cenai_path("gridout")
 
     def __init__(self):
         super().__init__()
 
-    @classmethod
-    def _get_args(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(
-            description="PDAC classification recapper"
+        self._cli = GridCLI(
+            title="PDAC recapper",
+            runner=PDACRecapper,
+            search_name="artifact",
+            search_dir="%artifact",
+            search_pattern="*",
+            search_type="dir",
         )
-
-        parser.add_argument(
-            "-b",
-            "--batch",
-            nargs="+",
-            default=[],
-            help="batch mode"
-        )
-
-        return parser.parse_args()
-
-    @classmethod
-    def _choose_grid_dirs(cls, batch: list[str]) -> list[Path]:
-        grid_dirs = [cls.base_dir / path for path in batch]
-
-        if grid_dirs:
-            return grid_dirs
-
-        grid_dirs = [
-            path
-            for path in cls.base_dir.glob("*")
-            if path.is_dir()
-        ]
-
-        items = [
-            f"[{i + 1}] {grid_dir.name}"
-            for i, grid_dir in enumerate(grid_dirs)
-        ]
-
-        while True:
-            answer = input(
-                f"\n{'\n'.join(items)}\n\n"
-                "Choose a grid directory by name(q for exit): "
-            )
-
-            answer = answer.strip()
-
-            if answer.lower() == "q":
-                return []
-
-            if answer.isdigit():
-                k = int(answer) - 1
-                if k < len(items):
-                    grid_dir = grid_dirs[k]
-                    break
-
-            cls.ERROR(f"\nwrong selection - {Q(answer)}\n")
-
-        return [grid_dir]
 
     def __call__(self) -> None:
-        option = self._get_args()
-
-        grid_dirs = self._choose_grid_dirs(
-            batch=option.batch,
-        )
-
-        for grid_dir in grid_dirs:
-            self.INFO(f"{Q(grid_dir)} proceed ....")
-
-            recapper = PDACRecapper(grid_dir)
-            recapper.export_excel()
-
-            self.INFO(f"{Q(grid_dir)} proceed DONE")
+        self._cli()
 
 
 if __name__ == "__main__":
     try:
         pdac_recap = PDACRecap()
         pdac_recap()
+
     except Exception as e:
         PDACRecap.ERROR(e)
+        exit(-1)

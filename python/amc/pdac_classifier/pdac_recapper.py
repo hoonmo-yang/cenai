@@ -2,12 +2,14 @@ import pandas as pd
 from pathlib import Path
 import re
 
+from cenai_core.grid import BaseRunner
 from cenai_core.pandas_helper import from_json
 
-class PDACRecapper:
-    def __init__(self, grid_dir: Path):
-        self._output_dir = grid_dir
-        self._run_df, self._parameters = self._merge_data()
+
+class PDACRecapper(BaseRunner):
+    def __init__(self, artifact_dir: Path):
+        self._output_dir = artifact_dir
+        self._case_df, self._parameters = self._merge_data()
 
     def _merge_data(self) -> tuple[pd.DataFrame, list[str]]:
         prefix = self._output_dir.name
@@ -16,20 +18,19 @@ class PDACRecapper:
         metadata_df = pd.DataFrame()
         result_df = pd.DataFrame()
 
-        for datastore_dir in base_dir.glob(f"{prefix}*"):
-            if not datastore_dir.is_dir():
+        for datastore_json in base_dir.glob(f"{prefix}*.json"):
+            if not datastore_json.is_file():
                 continue
 
-            for datastore_json in datastore_dir.glob("*.json"):
-                a_metadata_df, a_result_df, *_ = from_json(datastore_json)
+            some_metadata_df, some_result_df, *_ = from_json(datastore_json)
 
-                metadata_df = pd.concat(
-                    [metadata_df, a_metadata_df], axis=0,
-                )
+            metadata_df = pd.concat(
+                [metadata_df, some_metadata_df], axis=0,
+            )
 
-                result_df = pd.concat(
-                    [result_df, a_result_df], axis=0,
-                )
+            result_df = pd.concat(
+                [result_df, some_result_df], axis=0,
+            )
 
         metadata_df = metadata_df.reset_index(drop=True)
         result_df = result_df.reset_index(drop=True)
@@ -39,75 +40,73 @@ class PDACRecapper:
              axis=1
         )
 
-        metadata_df["dataset"] = metadata_df.apply(
-            lambda field: "".join(field["dataset"].split("_")[0]),
-            axis=1,
-        )
-
         parameters = [
             column
             for column in metadata_df.columns
             if column not in [
-                "grid_id",
-                "run_id",
-                "grid_name",
-                "grid_index",
-                "module",
+                "suite_id",
+                "case_id",
+                "suite_prefix",
+                "suite_create_date",
+                "suite_index",
                 "institution",
                 "task",
-                "dataset",
-                "prompt",
-                "model",
                 "tags",
-                "grid_yaml",
+                "model",
+                "module",
+                "corpus_mode",
+                "corpus_prefix",
+                "corpus_stem",
+                "corpus_ext",
+                "profile_file",
                 "sections",
             ]
         ]
 
-        result_df["hit"] = result_df["정답"] == result_df["예측"]
+        result_df["hit"] = (result_df["정답"] == result_df["예측"])
 
-        result_df["run_group"] = result_df.apply(
+        result_df["case_group"] = result_df.apply(
             lambda field:
-                re.sub(r"_(\d{2})_", "_", field["run_id"]),
+                re.sub(r"_(\d+)_", "_", field["case_id"]),
                 axis=1,
         )
 
-        result_df["hits"] = result_df.groupby(["grid_id", "run_group"])["hit"].transform("sum")
-        result_df["total"] = result_df.groupby(["grid_id", "run_group"])["hit"].transform("count")
+        result_df["hits"] = result_df.groupby(["suite_id", "case_group"])["hit"].transform("sum")
+        result_df["total"] = result_df.groupby(["suite_id", "case_group"])["hit"].transform("count")
         result_df["hit_ratio"] = 100 * result_df["hits"] / result_df["total"]
 
-        run_df = pd.merge(
+        case_df = pd.merge(
              result_df,
              metadata_df,
-             on=["grid_id", "run_id"],
+             on=["suite_id", "case_id"],
              how="outer",
         )
 
-        return run_df, parameters
+        return case_df, parameters
 
     def export_excel(self):
-        for grid_id, run_df in self.run_df.groupby(["grid_id"]):
-            excel_dir = self._output_dir / "excel" 
+        for suite_id, case_df in self.case_df.groupby(["suite_id"]):
+            excel_dir = self._output_dir / "export"
             excel_dir.mkdir(parents=True, exist_ok=True)
-            excel_file = excel_dir / f"{grid_id[0]}.xlsx"
+            excel_file = excel_dir / f"{suite_id[0]}.xlsx"
 
-            statistics_df = self._format_statistics(run_df)
-            result_df = self._format_result(run_df)
-            deviate_df = self._format_deviate(run_df)
+            statistics_df = self._format_statistics(case_df)
+            result_df = self._format_result(case_df)
+            deviate_df = self._format_deviate(case_df)
 
             with pd.ExcelWriter(excel_file) as writer:
                 statistics_df.to_excel(writer, sheet_name="Statistics")
                 result_df.to_excel(writer, sheet_name="Results")
                 deviate_df.to_excel(writer, sheet_name="Deviates")
 
-    def _format_statistics(self, run_df: pd.DataFrame) -> pd.DataFrame:
+    def _format_statistics(self, case_df: pd.DataFrame) -> pd.DataFrame:
         value_order = ["hits", "total", "hit_ratio", "소요시간"]
 
         statistic_df = pd.pivot_table(
-            run_df,
+            case_df,
             values=["hits", "total", "hit_ratio", "소요시간"],
-            index=["model", "module", "prompt"] + self.parameters,
-            columns=["dataset", "sections"],
+            index=["model", "module"] + self.parameters,
+            columns=["corpus_prefix", "sections"],
             aggfunc=["mean"],
             fill_value=pd.NA,
             dropna=False,
@@ -121,9 +120,14 @@ class PDACRecapper:
 
         return statistic_df
 
-    def _format_result(self, run_df: pd.DataFrame) -> pd.DataFrame:
+    def _format_result(self, case_df: pd.DataFrame) -> pd.DataFrame:
+        case_df["corpus"] = case_df.apply(
+            lambda field: f"{field['corpus_stem']}{field['corpus_ext']}",
+            axis=1
+        )
+
         candidates = [
-            "model", "dataset", "sections", "prompt", "module",
+            "model", "corpus", "sections", "module",
         ] + self.parameters + [
             "hit", "정답", "예측", "근거", "본문", "결론", "생성질문",
         ]
@@ -131,14 +135,19 @@ class PDACRecapper:
         columns = [
             column
             for column in candidates
-            if column in run_df.columns
+            if column in case_df.columns
         ]
 
-        return run_df[columns]
+        return case_df[columns]
 
-    def _format_deviate(self, run_df: pd.DataFrame) -> pd.DataFrame:
+    def _format_deviate(self, case_df: pd.DataFrame) -> pd.DataFrame:
+        case_df["corpus"] = case_df.apply(
+            lambda field: f"{field['corpus_stem']}{field['corpus_ext']}",
+            axis=1
+        )
+
         candidates = [
-            "model", "dataset", "sections", "prompt", "module",
+            "model", "corpus", "sections", "module",
         ] + self.parameters + [
             "정답", "예측", "근거", "본문", "결론", "생성질문",
         ]
@@ -146,21 +155,19 @@ class PDACRecapper:
         columns = [
             column
             for column in candidates
-            if column in run_df.columns
+            if column in case_df.columns
         ]
 
-        deviate_df = run_df[~run_df["hit"]][columns]
-
-        deviate_df["dataset"] = deviate_df.apply(
-            lambda field: "".join(field["dataset"].split("_")[:2]),
-            axis=1,
-        )
+        deviate_df = case_df[~case_df["hit"]][columns]
 
         return deviate_df
 
+    def __call__(self) -> None:
+        self.export_excel()
+
     @property
-    def run_df(self) -> pd.DataFrame:
-        return self._run_df
+    def case_df(self) -> pd.DataFrame:
+        return self._case_df
 
     @property
     def parameters(self) -> list[str]:

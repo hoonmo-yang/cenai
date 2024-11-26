@@ -1,6 +1,6 @@
 #!/bin/bash
-GRID=amc-poc-2024-11-14
+PROFILE=amc-poc-2024-11-14
 PATH=$PATH:.
 
-pdac_classify -b $GRID
-pdac_recap -b $GRID
+pdac_classify $PROFILE
+pdac_recap $PROFILE

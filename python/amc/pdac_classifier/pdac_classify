@@ -1,99 +1,33 @@
 #!/usr/bin/env python3
-import argparse
-from pathlib import Path
 
 from cenai_core import Logger
-from cenai_core.dataman import Q
-from cenai_core.grid import GridRunner
+from cenai_core.grid import GridCLI, GridRunner
 
 
-class PDACClassification(Logger):
-    profile_dir = Path("profile")
+class PDACClassify(Logger):
     logger_name = "cenai.system"
 
     def __init__(self):
         super().__init__()
 
-        self._runner = GridRunner()
-
-    @classmethod
-    def _get_args(cls) -> argparse.Namespace:
-        parser = argparse.ArgumentParser(
-            description="PDAC report classifier"
+        self._cli = GridCLI(
+            title="PDAC classifier",
+            runner=GridRunner,
+            search_name="profile",
+            search_dir="%python/amc/pdac_classifier/profile",
+            search_pattern="*.yaml",
+            search_type="file",
         )
-
-        parser.add_argument(
-            "-b",
-            "--batch",
-            nargs="+",
-            default=[],
-            help="batch mode"
-        )
-
-        return parser.parse_args()
-
-    @classmethod
-    def _choose_profile_yamls(cls, batch: list[str]) -> list[Path]:
-        profile_yamls = [
-            cls.profile_dir / f"{profile}.yaml" for profile in batch
-        ]
-
-        if profile_yamls:
-            return profile_yamls
-
-        profile_yamls = list(cls.profile_dir.glob("*.yaml"))
-
-        if not profile_yamls:
-            cls.ERROR(f"no profile file in {Q(cls.profile_dir)}")
-            return []
-
-        items = [
-            (f"[{i + 1}] {profile_yaml.stem}")
-            for i, profile_yaml in enumerate(profile_yamls)
-        ]
-
-        while True:
-            answer = input(
-                f"\n{'\n'.join(items)}\n\n"
-                "Choose a grid profile by number(q for exit): "
-            )
-
-            answer = answer.strip()
-
-            if answer.lower() == "q":
-                return []
-
-            if answer.isdigit():
-                k = int(answer) - 1
-                if k < len(items):
-                    profile_yaml = profile_yamls[k]
-                    break
-
-            cls.ERROR(f"\nwrong selection - {Q(answer)}\n")
-
-        return [profile_yaml]
 
     def __call__(self) -> None:
-        option = self._get_args()
-
-        profile_yamls = self._choose_profile_yamls(
-            batch=option.batch,
-        )
-
-        for profile_yaml in profile_yamls:
-            self.INFO(f"PROFILE {Q(profile_yaml)} proceed ....")
-
-            self._runner(profile_yaml)
-
-            self.INFO(f"PROFILE {Q(profile_yaml)} proceed DONE")
-
-        self.INFO("bye")
+        self._cli()
 
 
 if __name__ == "__main__":
     try:
-        pdac_classify = PDACClassification()
+        pdac_classify = PDACClassify()
         pdac_classify()
 
-    except Exception as e:
-        PDACClassification.ERROR(e)
+    except Exception as error:
+        PDACClassify.ERROR(error)
+        exit(-1)

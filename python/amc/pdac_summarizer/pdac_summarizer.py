@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Any, Optional
+from typing import Any, Callable, Iterator, Optional
 
+import itertools
 import pandas as pd
 from pydantic import BaseModel, Field
 
@@ -9,7 +10,7 @@ from langchain_core.documents import Document
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from cenai_core import Timer
-from cenai_core.dataman import concat_texts, load_text, optional, Q, Struct
+from cenai_core.dataman import load_text, optional, Q, Struct
 from cenai_core.grid import GridRunnable
 from cenai_core.nlp import match_text
 from amc.pdac_summarizer.pdac_template import PDACReportTemplateFail
@@ -29,11 +30,12 @@ class PDACSummarizer(GridRunnable):
                  case_suffix: str,
                  metadata: Struct
                  ):
+        corpus_part = self.metadata.corpus_stem
 
         super().__init__(
             model=model,
             case_suffix=case_suffix,
-            corpus_suffix="",
+            corpus_part=corpus_part,
             metadata=metadata,
         )
 
@@ -53,8 +55,10 @@ class PDACSummarizer(GridRunnable):
         ) -> None:
         self.INFO(f"{self.header} SUMMARIZE proceed ....")
 
-        testset_df = self._select_testsets(
-            self.dataset_df["test"], num_selects
+        sample_df = self.select_samples(
+            source_df=self.dataset_df["test"],
+            num_selects=num_selects,
+            keywords=["유형", "sample"],
         )
 
         css_file = self.html_dir / "styles.css"
@@ -63,41 +67,26 @@ class PDACSummarizer(GridRunnable):
         num_tries = optional(num_tries, 5)
         recovery_time = optional(recovery_time, 2)
 
-        self.result_df = testset_df.apply(
+        self.result_df = sample_df.apply(
             self._summarize_foreach,
             labels=self.get_type_labels(),
             css_text=css_text,
-            total=testset_df.shape[0],
+            count=itertools.count(1),
+            total=sample_df.shape[0],
             num_tries=num_tries,
             recovery_time=recovery_time,
             axis=1
         )
 
+        self._summarize_post()
+
         self.INFO(f"{self.header} SUMMARIZE proceed DONE")
-
-    def _select_testsets(self,
-                         testset_df: pd.DataFrame,
-                         num_selects: Optional[int],
-                         ) -> pd.DataFrame:
-        num_selects = optional(num_selects, 0)
-
-        if not num_selects:
-            return testset_df
-
-        sample_df = testset_df.groupby(["유형"]).apply(
-                lambda field:
-                    field.sample(
-                        min(len(field), num_selects),
-                        random_state=0,
-                    )
-            ).droplevel(0).reset_index().rename(columns={"index": "sample"})
-
-        return sample_df
 
     def _summarize_foreach(self,
                           field: pd.Series,
                           labels: list[str],
                           css_text: str,
+                          count: Callable[..., Iterator[int]],
                           total: int,
                           num_tries: int,
                           recovery_time: int
@@ -140,7 +129,7 @@ class PDACSummarizer(GridRunnable):
 
         gt_type = field["유형"]
         pv_type = match_text(pdac_report.type, labels)
-        sample = int(field["sample"])
+        sample = field["sample"]
 
         summary = pdac_report.model_dump()
 
@@ -156,8 +145,6 @@ class PDACSummarizer(GridRunnable):
         )
 
         entry = pd.Series({
-            "suite_id": self.suite_id,
-            "case_id": self.case_id,
             "gt_type": gt_type,
             "pv_type": pv_type,
             "summary": summary,
@@ -176,7 +163,7 @@ class PDACSummarizer(GridRunnable):
 
         self.INFO(
             f"{self.header} SUMMARIZE proceed DONE "
-            f"[{int(field.name) + 1:02d}/{total:02d}] proceed DONE"
+            f"[{next(count):02d}/{total:02d}] proceed DONE"
         )
         return entry
 
@@ -239,9 +226,16 @@ class PDACSummarizer(GridRunnable):
 
         return indices[0] if indices else -1
 
-    @staticmethod
-    def concat_documents(documents: list[Document]) -> str:
-        return concat_texts(documents, "page_content", "\n\n")
+    def _summarize_post(self):
+        self.result_df[
+            [
+                "suite_id",
+                "case_id",
+            ]
+        ] = [
+            self.suite_id,
+            self.case_id,
+        ]
 
     @staticmethod
     def reorder_documents(documents: list[Document]) -> list[Document]:

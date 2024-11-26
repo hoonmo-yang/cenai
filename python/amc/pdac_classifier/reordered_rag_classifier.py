@@ -2,13 +2,13 @@ from typing import Sequence
 
 from operator import itemgetter
 
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import FAISS
 from langchain_community.retrievers import BM25Retriever
+from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import Runnable, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableMap
 from langchain.retrievers import EnsembleRetriever
-from langchain.schema import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from cenai_core.dataman import Struct
@@ -58,16 +58,16 @@ class ReorderedRagClassifier(PDACClassifier):
             question,
         ]
 
-        retriever = self._create_retriever()
+        retriever = self._build_retriever()
 
-        self.classifier_chain = self._create_classifier_chain(
+        self.classify_chain = self._build_classify_chain(
             classify_prompt=classify_prompt,
             retriever=retriever,
         )
 
         self.INFO(f"{self.header} prepared DONE")
 
-    def _create_retriever(self) -> BaseRetriever:
+    def _build_retriever(self) -> BaseRetriever:
         self.INFO(f"{self.header} RAG prepared ....")
 
         trainset_text = self.stringfy_trainsets()
@@ -85,7 +85,7 @@ class ReorderedRagClassifier(PDACClassifier):
         )
         bm25_retriever.k = 1
 
-        vectorstore = Chroma.from_documents(
+        vectorstore = FAISS.from_documents(
             documents=splits,
             embedding=self.embeddings,
         )
@@ -103,22 +103,26 @@ class ReorderedRagClassifier(PDACClassifier):
         self.INFO(f"{self.header} RAG prepared DONE")
         return retriever
 
-    def _create_classifier_chain(self,
-                                 classify_prompt: str,
-                                 retriever: BaseRetriever
-                                 ) -> Runnable:
+    def _build_classify_chain(self,
+                              classify_prompt: str,
+                              retriever: BaseRetriever
+                              ) -> Runnable:
         self.INFO(f"{self.header} CHAIN prepared ....")
 
         prompt_args = load_chatprompt(self.content_dir / classify_prompt)
         prompt = ChatPromptTemplate(**prompt_args)
 
         chain = (
-            RunnablePassthrough().assign(
-                context=itemgetter("question") |
-                retriever |
-                self.reorder_documents |
-                self.concat_documents
-            ) |
+            RunnableMap({
+                "content": itemgetter("content"),
+
+                "context": (
+                    itemgetter("question") |
+                    retriever |
+                    self.reorder_documents |
+                    self.concat_documents
+                ),
+            }) |
             prompt |
             self.model.with_structured_output(PDACClassifyResult)
         ) 

@@ -38,8 +38,15 @@ class Gridsuite(BaseModel):
     def prefix_dir(self) -> str:
         return self.artifact_dir / self.prefix
 
-class GridRunner(Logger):
+
+class BaseRunner(Logger):
     logger_name = "cenai.system"
+
+    def __init__(self):
+        super().__init__()
+
+
+class GridRunner(BaseRunner):
     version = "v2"
 
     data_dir = cenai_path("data")
@@ -326,7 +333,7 @@ class GridRunner(Logger):
         mode = corpus.pop("mode")[0]
         prefix = corpus.pop("prefix")[0]
 
-        source_dir = self.source_corpus_dir / "prefix"
+        source_dir = self.source_corpus_dir / prefix
 
         for values in product(*corpus.values()):
             corpus_args = dict(zip(corpus.keys(), values))
@@ -404,7 +411,11 @@ class GridRunner(Logger):
                     )
 
                 for tag in ["train", "test"]:
-                    dataframe = target_df[tag].reset_index(drop=True)
+                    dataframe = target_df[tag].reset_index().rename(
+                        columns={"index": "sample"}
+                    )
+
+                    dataframe["sample"] = dataframe["sample"].astype(int)
 
                     target_dir = corpus_dir / Path(corpus_stem).parent / tag
                     target_dir.mkdir(parents=True, exist_ok=True)
@@ -443,7 +454,7 @@ class GridRunner(Logger):
                 if len(seed) > 2:
                     seed[1] += seed[0]
 
-                targets.extend(range(seed[:3]))
+                targets.extend(range(*seed[:3]))
 
         return list(set(targets))
 
@@ -536,17 +547,14 @@ class GridRunner(Logger):
                     instance.run(**self.recipe.directive)
 
                     self.metadata_df = pd.concat(
-                        [self.metadata_df, instance.metadata_df], axis=1
+                        [self.metadata_df, instance.metadata_df], axis=0
                     )
 
                     self.result_df = pd.concat(
-                        [self.result_df, instance.result_df], axis=1
+                        [self.result_df, instance.result_df], axis=0
                     )
 
         self.INFO(f"{self.header} proceed DONE")
-
-    def __call__(self) -> None:
-        self.invoke()
 
     def save(self) -> None:
         self.INFO(f"{self.header} DATA saved ....")
@@ -566,7 +574,7 @@ class GridRunner(Logger):
 
         export = dict(self.recipe.export)
 
-        if not export.get("enable"):
+        if not export.pop("enable", False):
             return
 
         stem = optional(export.pop("stem", None), self.suite_id)
@@ -643,6 +651,11 @@ class GridRunner(Logger):
                              f"file type {Q(extension)}")
 
         self.INFO(f"File {Q(target)} saved Done")
+
+    def __call__(self) -> None:
+        self.invoke()
+        self.save()
+        self.export()
 
     @property
     def recipe(self) -> Struct:
