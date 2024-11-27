@@ -1,23 +1,23 @@
 metadata:
   version: v2
-  name: nrf-poc-2024-11-26
+  name: nrf-poc-2024-12-02
   institution: nrf
-  task: qa-dataset-generator
+  task: paper-summarizer
   tags:
-  - qa-dataset-generator
+  - paper-summarizer
   - nrf-poc
-  - "2024-11-26"
+  - "2024-12-02"
 
 directive:
   langsmith: false
   replicate: false
-  fixed_date: "2024-11-26"
+  fixed_date:
   save: true
   num_tries: 5
   recovery_time: 5
 
 export:
-  enable: true
+  enable: false
   stem:
   columns:
     all:
@@ -26,32 +26,32 @@ export:
   mode:
   - result
   extension:
-  - .csv
-  - .json
   - .xlsx
 
 model:
 - hcx-003
 
 corpora:
-- mode:
-  - aggregate
+- type:
+  - document
   prefix:
   - "sample"
   stem:
   - "*"
   extension:
-  - .hwpx
+  - .hwp
+  - .pdf
 
 cases:
 - module:
-  - vanila_*qa*_dataset_generator
+  - stuff_summarizer
+  - map_reduce_summarizer
   content_kr:
-  - generate_prompt
+  - summarize_prompt
+  - keyword_prompt
   parameter:
   - chunk_size
   - chunk_overlap
-  - num_datasets
   - max_tokens
 
 parameter:
@@ -60,10 +60,10 @@ parameter:
   chunk_overlap:
   - 50
   max_tokens:
-  - 1000
-  num_datasets:
-  - 10
+  - 600
 
 content_kr:
-  generate_prompt:
-  - pt-qagen-kr.yaml
+  summmarize_prompt:
+  - pt-sum-kr.yaml
+  keyword_prompt:
+  - pt-kwd-kr.yaml

@@ -57,7 +57,7 @@ class GridRunnable(Logger, ABC):
         ])
 
         self._dataset_df = self._load_dataset()
-        self._document_files = self._collect_document_files()
+        self._document_df = self._load_documents()
 
         self._source_dir = (
             self.data_dir /
@@ -111,9 +111,9 @@ class GridRunnable(Logger, ABC):
 
         return dataset_df
 
-    def _collect_document_files(self) -> list[Path]:
+    def _load_documents(self) -> pd.DataFrame:
         if self.metadata.corpus_mode not in ["aggregate", "document",]:
-            return []
+            return pd.DataFrame()
 
         corpus_prefix = self.metadata.corpus_prefix
         corpus_dir = self.corpus_dir / corpus_prefix
@@ -134,7 +134,11 @@ class GridRunnable(Logger, ABC):
                 list(corpus_dir.glob(f"{stem}{extension}"))
             )
 
-        return document_files
+        document_df = pd.DataFrame({
+            "file": document_files,
+        })
+
+        return document_df
 
     @staticmethod
     def select_samples(source_df: pd.DataFrame,
@@ -232,8 +236,8 @@ class GridRunnable(Logger, ABC):
         return self._dataset_df
 
     @property
-    def document_files(self) -> list[Path]:
-        return self._document_files
+    def document_df(self) -> pd.DataFrame:
+        return self._document_df
 
     @property
     def result_df(self) -> pd.DataFrame:

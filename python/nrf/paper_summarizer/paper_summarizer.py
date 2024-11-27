@@ -12,11 +12,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from cenai_core import Timer
 from cenai_core.dataman import load_json_yaml, Q, Struct
-from cenai_core.grid import GenerateGridRunnable
+from cenai_core.grid import GridRunnable
 from cenai_core.langchain_helper import load_documents
 
 
-class PaperSummarizer(GenerateGridRunnable, ABC):
+class PaperSummarizer(GridRunnable, ABC):
     logger_name = "cenai.nrf.paper_classifier"
 
     def __init__(self,
@@ -37,16 +37,16 @@ class PaperSummarizer(GenerateGridRunnable, ABC):
             f"tk{max_tokens}",
         ])
 
-        corpus_suffix = "_".join([
+        corpus_parts = "_".join([
             metadata.corpus_prefix,
             metadata.corpus_stem,
-            metadata.corpus_ext.split(".")[0],
+            metadata.corpus_ext.split(".")[-1],
         ])
 
         super().__init__(
             model=model,
             case_suffix=case_suffix,
-            corpus_suffix=corpus_suffix,
+            corpus_parts=corpus_parts,
             metadata=metadata,
         )
 
@@ -84,17 +84,9 @@ class PaperSummarizer(GenerateGridRunnable, ABC):
         layout_file = self.content_dir / "paper-layout.yaml"
         layout = load_json_yaml(layout_file)
 
-        sections = []
-        titles = []
-
-        for key, value in layout["skeleton"].items():
-            sections.append(key)
-            titles.append(value)
-
         return Struct({
-            "sections": sections,
-            "titles": titles,
-            "summary": layout["summary"]
+            "source": layout["source_template"],
+            "summary": layout["summary_template"],
         })
 
     def run(self, **directive) -> None:
@@ -108,6 +100,13 @@ class PaperSummarizer(GenerateGridRunnable, ABC):
             ) -> None:
 
         self.INFO(f"{self.header} PAPER SUMMARY proceed ....")
+
+        for file_
+
+
+
+
+
 
         file_ = self.document_files[0]
 

@@ -1,4 +1,4 @@
-skeleton:
+source_template:
   summary: 연구결과 요약문
   toc: 목   차
   abstract: 연구개발과제의 개요
@@ -8,7 +8,8 @@ skeleton:
   planning: 연구개발성과의 관리 및 활용 계획
   checklist: 자체점검표
   reference: 참고문헌
-summary:
+
+summary_template:
   abstract:
     title: 연구개요
     sections:

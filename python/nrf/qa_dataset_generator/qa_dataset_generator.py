@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Callable, Iterator, Optional
 
+import itertools
 from pathlib import Path
 import pandas as pd
 import re
 
 from langchain_core.runnables import Runnable, RunnableLambda
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
 
 from cenai_core import Timer
 
@@ -97,114 +98,103 @@ class QADatasetGenerator(GridRunnable):
 
         self.INFO(f"{self.header} QA-DATASET GENERATE proceed ....")
 
-        weights = [
-            get_document_length(file_)
-            for file_ in self.document_files
-        ]
+        document_df = self.document_df.copy()
 
-        sizes = proportionalize(self._num_datasets, weights)
-        
-        timer = Timer()
+        document_df["length"] = document_df.apply(
+            lambda field: get_document_length(field.file),
+            axis=1
+        )
 
-        for i, (file_, size) in enumerate(zip(self.document_files, sizes)):
-            self.INFO(
-                f"{self.header} FILE {Q(file_)} "
-                f"[{i + 1}/{len(self.document_files)}] ...."
-            )
+        document_df["num_per_file"] = proportionalize(
+            self._num_datasets, document_df["length"]
+        )
 
-            documents = self._load_documents(file_)
-
-            total = len(documents)
-            split_sizes = divide_evenly(size, total)
-
-            result_df = pd.DataFrame()
-
-            for j, (document, split_size) in enumerate(zip(documents, split_sizes)):
-                if split_size == 0:
-                    self.INFO(
-                        f"{self.header} DOCUMENT [{j + 1}/{total}] "
-                        f"size: {split_size} SKIP"
-                    )
-                    continue
-
-                some_result_df = self._generate_qa_dataset_foreach(
-                    document=document,
-                    size=split_size,
-                    num_tries=num_tries,
-                    recovery_time=recovery_time,
-                    file_=file_,
-                )
-
-                if some_result_df is None:
-                    self.INFO(
-                        f"{self.header} DOCUMENT [{j + 1}/{total}] "
-                        f"size: {split_size} SKIP"
-                    )
-                    continue
-
-                self.INFO(
-                    f"{self.header} DOCUMENT [{j + 1}/{total}] "
-                    f"size: {split_size} DONE"
-                )
-
-                result_df = pd.concat(
-                    [result_df, some_result_df], axis=0
-                )
-
-            self.result_df = pd.concat(
-                [self.result_df, result_df], axis=0
-            )
-
-            timer.lap()
-
-            self.INFO(
-                f"{self.header} "
-                f"total_time: {timer.seconds:.1f}s "
-                f"({self.result_df.shape[0]}/{self._num_datasets})"
-            )
-
-            self.INFO(
-                f"{self.header} FILE {Q(file_)} "
-                f"[{i + 1}/{len(self.document_files)}] DONE"
-            )
-
-        self.result_df = self.result_df.reset_index(drop=True)
-        self.INFO(f"{self.header} QA-DATASET GENERATE proceed DONE")
-
-    def _load_documents(self, file_: Path) -> list[Document]:
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=self._chunk_size,
             chunk_overlap=self._chunk_overlap,
         )
 
-        documents = load_documents(file_)
+        document_df[["num_per_chunk", "document"]] = document_df.apply(
+            self._split_document_foreach,
+            count=itertools.count(1),
+            total=document_df.shape[0],
+            splitter=splitter,
+            axis=1
+        )
+
+        document_df = document_df.explode(
+            ["num_per_chunk", "document"]
+        ).reset_index(drop=True)
+
+        self.result_df = document_df.apply(
+            self._generate_qa_dataset_foreach,
+            count=itertools.count(1),
+            total=document_df.shape[0],
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+            axis=1
+        ).dropna(how="all").explode(
+            ["문제", "정답"]
+        ).reset_index(drop=True)
+
+        self.INFO(f"{self.header} QA-DATASET GENERATE proceed DONE")
+
+    def _split_document_foreach(self,
+                                field: pd.Series,
+                                count: Callable[..., Iterator[int]],
+                                total: int,
+                                splitter: TextSplitter
+                                ) -> pd.Series:
+
+        documents = load_documents(field.file)
 
         split_documents = splitter.split_documents(
             documents=documents,
         )
 
-        return split_documents
+        total = len(split_documents)
+        split_sizes = divide_evenly(field.num_per_file, total)
+
+        self.INFO(
+            f"load and split documents from FILE {Q(field.file)} DONE"
+            f"[{next(count):02d}/{total:02d}] proceed DONE"
+        )
+
+        return pd.Series({
+            "num_per_chunk": split_sizes,
+            "document": split_documents,
+        })
 
     def _generate_qa_dataset_foreach(
-            self,
-            document: Document,
-            size: int,
-            num_tries: int,
-            recovery_time: int,
-            file_: Path
-        ) -> Optional[pd.DataFrame]:
+        self,
+        field: pd.Series,
+        count: Callable[..., Iterator[int]],
+        total: int,
+        num_tries: int,
+        recovery_time: int,
+    ) -> pd.Series:
+
+        num_per_chunk = field.num_per_chunk
+        document = field.document
+
+        if num_per_chunk == 0:
+            self.INFO(
+                f"FILE {Q(field.file)} DOCUMENT [{next(count)}/{total}] "
+                f"SIZE {field.num_per_chunk} SKIP"
+            )
+            return pd.Series()
+
         for i in range(num_tries):
             try:
                 timer = Timer()
 
                 response = self.generate_chain.invoke(
                     {
-                        "num_datasets": size,
+                        "num_datasets": num_per_chunk,
                         "max_tokens": self._max_tokens,
                         "context": document.page_content,
                     }
                 )
-
             except KeyboardInterrupt as error:
                 raise error
 
@@ -217,39 +207,54 @@ class QADatasetGenerator(GridRunnable):
                 break
         else:
             self.ERROR(f"number of tries exceeds {num_tries}")
-            return None
+
+            self.INFO(
+                f"FILE {Q(field.file)} DOCUMENT [{next(count)}/{total}] "
+                f"SIZE {field.num_per_chunk} SKIP"
+            )
+
+            return pd.Series()
 
         timer.lap()
 
-        records = self._parse_response(response, size)
-        result_df = pd.DataFrame(records)
+        questions, answers = self._parse_response(response, num_per_chunk)
 
-        result_df[["file", "time"]] = [str(file_), timer.seconds]
+        entry = pd.Series({
+            "문제": questions,
+            "정답": answers,
+            "file": str(field.file),
+            "time": timer.seconds / len(questions),
+        })
 
-        return result_df
+        self.INFO(
+            f"FILE {Q(field.file)} DOCUMENT [{next(count)}/{total}] "
+            f"SIZE {field.num_per_chunk} TIME {timer.seconds:.1f} sec DONE"
+        )
+        return entry
 
     def _parse_response(self,
                         response: str,
-                        size: int
-                        ) -> list[dict[str, str]]:
+                        num: int
+                        ) -> tuple[list, list]:
+        questions = []
+        answers = []
+
         if not response:
-            return []
+            return questions, answers
 
         matches = self.P_RESPONSE.findall(response)
 
-        records = []
         for match in matches:
-            question = match[0].strip()
-            answer = match[1].strip()
-            records.append({"문제": question, "정답": answer})
+            questions.append(match[0].strip())
+            answers.append(match[1].strip())
 
-        if len(records) != size:
+        if len(questions) != num:
             self.WARNING(
-                f"numbers of generated records: {Q(len(records))} "
-                f"not matched to {Q(size)}"
+                f"numbers of generated Q&A: {Q(len(questions))} "
+                f"not matched to {Q(num)}"
             )
 
-        return records
+        return questions, answers
 
     @property
     def generate_chain(self) -> Runnable:

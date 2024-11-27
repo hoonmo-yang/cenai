@@ -20,7 +20,7 @@ from cenai_core.dataman import (
 from cenai_core.logger import Logger
 from cenai_core.pandas_helper import to_json
 from cenai_core.grid.runnable import GridRunnable
-from cenai_core.system import cenai_path, load_dotenv, Timer
+from cenai_core.system import cenai_path, load_dotenv
 
 
 class Gridsuite(BaseModel):
