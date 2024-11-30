@@ -124,7 +124,7 @@ class GridRunner(BaseRunner):
             "cases": Struct({
                 "keyword": "module",
                 "implicit_param_keys": [
-                    "model",
+                    "models",
                 ],
                 "all_params": [],
             }),
@@ -223,7 +223,7 @@ class GridRunner(BaseRunner):
             ["tags", "metadata", list],
             ["directive", "", dict],
             ["export", "", dict],
-            ["model", "", list],
+            ["models", "", list],
             ["cases", "", list],
             ["corpora", "", list],
         ]
@@ -472,7 +472,7 @@ class GridRunner(BaseRunner):
         all_corpus_args = []
 
         for file_ in source_corpus_dir.glob(f"{stem}{extension}"):
-            target = corpus_dir / prefix / file_.name
+            target = corpus_dir / file_.name
             target.parent.mkdir(parents=True, exist_ok=True)
 
             shutil.copyfile(file_, target)
@@ -482,7 +482,7 @@ class GridRunner(BaseRunner):
             all_corpus_args.append({
                 "corpus_mode": mode,
                 "corpus_prefix": prefix,
-                "corpus_stem": file_.name,
+                "corpus_stem": file_.stem,
                 "corpus_ext": file_.suffix,
             })
 

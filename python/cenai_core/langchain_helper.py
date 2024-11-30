@@ -37,7 +37,7 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from cenai_core.dataman import load_json_yaml
+from cenai_core.dataman import load_json_yaml, split_by_length
 
 
 default_model_name = "llama3.1:latest"
@@ -168,7 +168,7 @@ class LangchainHWPLoader(BaseLoader):
         self._reader = HWPReader()
 
     def load(self) -> list[Document]:
-        documents = self.reader.load_data(self._file_path)
+        documents = self._reader.load_data(self._file_path)
 
         documents = [
             Document(
@@ -276,3 +276,23 @@ def get_document_length(source_file: Path) -> int:
     documents = load_documents(source_file)
     return sum(len(document.page_content) for document in documents)
 
+
+class LineTextSplitter:
+    def __init__(self, chunk_size: int):
+        self._chunk_size = chunk_size
+
+    def split_documents(self, documents: list[Document]) -> Document:
+        text = "\n".join([
+            document.page_content for document in documents
+        ])
+
+        page_contents = []
+        lines = text.split("\n")
+
+        for line in lines:
+            page_contents.extend(split_by_length(line.strip(), self._chunk_size))
+
+        return [
+            Document(page_content=page_content)
+            for page_content in page_contents
+        ]

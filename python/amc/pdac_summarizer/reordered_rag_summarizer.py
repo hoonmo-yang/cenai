@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from operator import attrgetter, itemgetter
 
 from langchain_community.vectorstores import FAISS
@@ -26,7 +28,7 @@ from amc.pdac_summarizer import pdac_template
 
 class ReorderedRagSummarizer(PDACSummarizer):
     def __init__(self,
-                 model: str,
+                 models: Sequence[str],
                  topk: int,
                  classify_prompt: str,
                  summarize_prompt: str,
@@ -42,7 +44,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
         })
 
         super().__init__(
-            model=model,
+            models=models,
             case_suffix=case_suffix,
             metadata=metadata,
         )
@@ -78,7 +80,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
             summarize_prompt=summarize_prompt,
         )
 
-        self.summarize_chain = classify_chain | summarize_chain
+        self.main_chain = classify_chain | summarize_chain
         
         self.INFO(f"{self.header} prepared DONE")
 
@@ -142,7 +144,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
 
                 } |
                 prompt |
-                self.model.with_structured_output(PDACClassifyResult) |
+                self.model[0].with_structured_output(PDACClassifyResult) |
                 attrgetter("type")
             ),
 
@@ -180,7 +182,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
 
             statement = (
                 lambda x, type_=label: x["type"] == type_,
-                prompt | self.model | parser
+                prompt | self.model[0] | parser
             )
 
             statements.append(statement)

@@ -1,28 +1,33 @@
 from __future__ import annotations
-from typing import Any, Optional
+from typing import Any, Callable, Iterator, Optional, Union
 
-from abc import ABC, abstractmethod
+import itertools
 import pandas as pd
 from pathlib import Path
 from rapidfuzz import fuzz, process
 
+from langchain_core.documents import Document
 from langchain_core.runnables import Runnable, RunnableLambda
-from langchain.schema import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from cenai_core import Timer
-from cenai_core.dataman import load_json_yaml, Q, Struct
+
+from cenai_core.dataman import (
+    load_json_yaml, optional, pad_list, Q, Struct
+)
+
 from cenai_core.grid import GridRunnable
-from cenai_core.langchain_helper import load_documents
+from cenai_core.langchain_helper import LineTextSplitter, load_documents
+
+from nrf.paper_summarizer.paper_template import (
+    PaperResultFail, PaperSummaryTemplate
+)
 
 
-class PaperSummarizer(GridRunnable, ABC):
+class PaperSummarizer(GridRunnable):
     logger_name = "cenai.nrf.paper_classifier"
 
     def __init__(self,
-                 model,
-                 chunk_size: int,
-                 chunk_overlap: int,
+                 models: list[str],
                  num_keywords: int,
                  max_tokens: int,
                  case_suffix: str,
@@ -32,53 +37,47 @@ class PaperSummarizer(GridRunnable, ABC):
         case_suffix = "_".join([
             case_suffix,
             f"kw{num_keywords}",
-            f"cs{chunk_size}",
-            f"co{chunk_overlap}",
             f"tk{max_tokens}",
         ])
 
-        corpus_parts = "_".join([
+        corpus_part = "_".join([
             metadata.corpus_prefix,
             metadata.corpus_stem,
             metadata.corpus_ext.split(".")[-1],
         ])
 
         super().__init__(
-            model=model,
+            models=models,
             case_suffix=case_suffix,
-            corpus_parts=corpus_parts,
+            corpus_part=corpus_part,
             metadata=metadata,
         )
 
-        self._chunk_size = chunk_size
-        self._chunk_overlap = chunk_overlap
         self._num_keywords = num_keywords
         self._max_tokens = max_tokens
 
         self.metadata_df.loc[
             0,
             [
-                "chunk_size",
-                "chunk_overlap",
                 "num_keywords",
                 "max_tokens",
              ]
         ] = [
-            chunk_size,
-            chunk_overlap,
             num_keywords,
             max_tokens,
         ]
 
         self._layout = self._get_layout()
 
-        self._summarize_chain = RunnableLambda(
+        self._extract_gt_chain = RunnableLambda(
             lambda _: ""
         )
 
-        self._keyword_chain = RunnableLambda(
-            lambda _: ""
-        )
+        css_file = self.html_dir / "styles.css"
+        self._css_text = f"<style>\n{css_file.read_text()}\n</style>"
+
+        html_file = self.html_dir / "html_template.html"
+        self._html_text = html_file.read_text()
 
     def _get_layout(self) -> Struct:
         layout_file = self.content_dir / "paper-layout.yaml"
@@ -90,9 +89,9 @@ class PaperSummarizer(GridRunnable, ABC):
         })
 
     def run(self, **directive) -> None:
-        self.summarize_paper(**directive)
+        self._summarize(**directive)
 
-    def summarize_paper(
+    def _summarize(
             self,
             num_tries: Optional[int] = None,
             recovery_time: Optional[int] = None,
@@ -101,118 +100,519 @@ class PaperSummarizer(GridRunnable, ABC):
 
         self.INFO(f"{self.header} PAPER SUMMARY proceed ....")
 
-        for file_
+        num_tries = optional(num_tries, 5)
+        recovery_time = optional(recovery_time, 2)
 
+        paper_df = self._split_papers_by_section()
 
+        pv_df = paper_df.pipe(
+            self._gather_paper_sections,
+        ).pipe(
+            self._summarize_papers,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        )
 
+        gt_df = paper_df[
+            paper_df.section == "summary"
+        ].pipe(
+            self._extract_summary_sections,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        )
 
+        self.result_df = pd.merge(
+            pv_df, gt_df,
+            on=["file"],
+            how="outer",
+            suffixes=["_pv", "_gt"],
+        )
 
+        self.INFO(f"{self.header} PAPER SUMMARY proceed DONE")
 
-        file_ = self.document_files[0]
+    def _split_papers_by_section(self) -> pd.DataFrame:
+        splitter = LineTextSplitter(chunk_size=50)
+        input_df = self.document_df
 
-        self.INFO(f"{self.header} FILE {Q(file_)} proceed ....")
+        output_df = input_df.apply(
+            self._split_paper_by_section_foreach,
+            splitter=splitter,
+            count=itertools.count(1),
+            total=input_df.shape[0],
+            axis=1
+        ).explode(
+            ["document", "section"],
+        ).reset_index(
+            drop=True,
+        ).groupby(
+            ["file", "section"], sort=False,
+        )["document"].apply(
+            self._merge_paper_by_section_foreach,
+        ).reset_index()
 
-        documents = self._prepare_documents(file_)
+        return output_df
 
-        for key, value in self.layout.summary.items():
-            title = value["title"]
-            sections = value["sections"]
+    def _split_paper_by_section_foreach(
+            self,
+            field: pd.Series,
+            splitter: LineTextSplitter,
+            count: Callable[..., Iterator[int]],
+            total: int
+        ) -> pd.Series:
+        file_ = field.file
 
-            content = (
-                self._extract_keywords(
-                    documents, sections, num_tries, recovery_time
-                ) if key in ["keyword",] else
-
-                self._summarize_sections(
-                    documents, title, sections, num_tries, recovery_time
-                )
-            )
-
-    def _prepare_documents(self, file_: Path) -> list[Document]:
         documents = load_documents(file_)
 
-        content = "\n".join([
-            document.page_content for document in documents
-        ])
+        content = "\n".join([document.page_content for document in documents])
 
-        documents = [
+        merged_documents = [
             Document(
                 page_content=content,
-                metadata={"source": str(file_),},
+                metadata={"source": str(file_)}
             )
         ]
 
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=50,
-            chunk_overlap=10,
+        split_documents = splitter.split_documents(merged_documents)
+        documents, sections = self._annotate_paper_by_section(split_documents)
+
+        self.INFO(
+            f"** FILE {Q(file_.name)} SECTION SPLIT "
+            f"[{next(count):02d}/{total:02d}] proceed DONE"
         )
 
-        documents = splitter.split_documents(documents)
-        documents = self._annotate_sections(documents)
+        return pd.Series({
+            "file": file_,
+            "section": sections,
+            "document": documents,
+        })
 
-    def _annotate_sections(self, documents: list[Document]) -> list[Document]:
-        targets = []
+    def _annotate_paper_by_section(
+            self,
+            documents: list[Document]
+        ) -> tuple[list[Document], list[str]]:
+
         section = ""
 
+        targets = []
+        sections = []
+
         for document in documents:
-            target, section = self._annotate_section(document, section)
+            target, section = self._annotate_document_by_section(
+                document, section
+            )
+
             targets.append(target)
+            sections.append(section)
 
-        return targets
+        return targets, sections
 
-    def _annotate_section(self,
-                          document: Document,
-                          section: str
-                          ) -> tuple[Document, str]:
-        content = document.page_content
+    def _annotate_document_by_section(
+            self,
+            document: Document,
+            section: str
+        ) -> tuple[Document, str]:
+
+        sections = list(self.layout.source.keys())
+        titles = list(self.layout.source.values())
+
         results = process.extract(
-            content, self.layout.titles,
+            document.page_content,
+            titles,
             scorer=fuzz.partial_ratio,
         )
-        if "sections" not in document.metadata:
-            document.metadata["sections"] = []
 
-        last = -1
-        targets = []
-        for result in results:
-            _, score, k = result
-            if score > 80.0:
-                targets.append(self.layout.sections[k])
-                last = max(k, last)
-
-        if last == -1:
-            targets.append(section)
-        else:
-            section = self.layout.sections[last]
-
-        document.metadata["sections"] = targets
+        _, score, k = results[0]
+        section = sections[k] if score > 80.0 else section
+        document.metadata["section"] = section
 
         return document, section
 
-    def _summarize_sections(
+    def _merge_paper_by_section_foreach(
+            self, group: pd.Series
+        ) -> pd.Series:
+
+        page_content = "\n".join(
+            group.apply(
+                lambda field: field.page_content
+            )
+        )
+
+        return pd.Series({
+            "document": Document(
+                            page_content=page_content,
+                            metadata={
+                                "file": str(group.name[0]),
+                                "section": group.name[1],
+                            },
+                        ),
+        })
+
+    def _gather_paper_sections(self, paper_df: pd.DataFrame) -> pd.DataFrame:
+
+        total = paper_df.groupby(["file"], sort=False).size().shape[0]
+
+        output_df = paper_df.groupby(["file"], sort=False)[
+            ["section", "document"]
+        ].apply(
+            self._gather_paper_sections_foreach,
+            count=itertools.count(1),
+            total=total,
+        ).explode(
+            ["item", "title", "content",]
+        ).reset_index()
+
+        return output_df
+
+    def _gather_paper_sections_foreach(
             self,
-            documents: list[Document],
-            title: str,
-            sections: list[str],
+            group: pd.DataFrame,
+            count: Callable[..., Iterator[int]],
+            total: int
+        ) -> pd.Series:
+        file_ = group.name
+
+        items = []
+        titles = []
+        contents = []
+
+        for item, record in self.layout.summary.items():
+            title, sections = [
+                record[key] for key in ["title", "sections"]
+            ]
+
+            page_contents = pd.Series()
+
+            for section in sections:
+                some_page_contents = group[
+                    group.section == section
+                ].document.apply(
+                    lambda field: field.page_content
+                )
+
+                page_contents = pd.concat(
+                    [page_contents, some_page_contents]
+                )
+
+            items.append(item)
+            titles.append(title)
+            contents.append("\n".join(page_contents))
+
+            self.INFO(f"**** ITEM {Q(item)} TITLE {Q(title)}")
+
+        entry = pd.Series({
+            "item": items,
+            "title": titles,
+            "content": contents,
+        })
+
+        self.INFO(
+            f"** FILE {Q(file_.name)} [{next(count)}/{total}] "
+            "SECTION GATHER DONE"
+        )
+
+        return entry
+
+    def _summarize_papers(self,
+                          paper_df: pd.DataFrame,
+                          num_tries: int,
+                          recovery_time: int
+                          ) -> pd.DataFrame:
+
+        total = paper_df.groupby(["file"], sort=False).size().shape[0]
+
+        summary_df = paper_df.groupby(["file"], sort=False)[
+            ["item", "title", "content"]
+        ].apply(
+            self._summarize_paper_foreach,
+            count=itertools.count(1),
+            total=total,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        ).reset_index()
+        
+        return summary_df
+
+    def _summarize_paper_foreach(self,
+                                 group: pd.DataFrame,
+                                 count: Callable[..., Iterator[int]],
+                                 total: int,
+                                 num_tries: int,
+                                 recovery_time: int
+                                ) -> pd.Series:
+        file_ = group.name
+        total2 = group.groupby(["item", "title"], sort=False).size().shape[0]
+
+        timer = Timer()
+
+        items = group.groupby(["item", "title"], sort=False)["content"].apply(
+            self._summarize_paper_item_foreach,
+            file_=file_,
+            count=itertools.count(1),
+            total=total2,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        ).reset_index().to_dict(orient="records")
+
+        summary, html = self._formatize(items)
+
+        timer.lap()
+
+        self.INFO(
+            f"** FILE {Q(file_.name)} [{next(count)}/{total}] "
+            "SUMMARIZE proceed DONE"
+        )
+
+        return pd.Series({
+            "summary": summary,
+            "html": html,
+            "time": timer.seconds,
+        })
+
+    def _summarize_paper_item_foreach(
+            self,
+            group: pd.Series,
+            file_: Path,
+            count: Callable[..., Iterator[int]],
+            total: int,
             num_tries: int,
             recovery_time: int
-            ):
+        ) -> Union[str, list[list[str]]]:
 
-        content = "\n".join([
-            document.page_content for document in documents
-            if set(document.metadata["sections"]) & set(sections)
-        ])
+        item, title = group.name
+        content = group.iloc[0]
 
+        for i in range(num_tries):
+            try:
+                timer = Timer()
 
+                response = self.main_chain.invoke(
+                    input={
+                        "item": item,
+                        "title": title,
+                        "content": content,
+                        "num_keywords": self._num_keywords,
+                        "max_tokens": self._max_tokens,
+                    },
+                    config=self.chain_config,
+                )
 
+            except KeyboardInterrupt as error:
+                raise error
 
+            except BaseException:
+                self.ERROR(f"LLM({self.model[0].model_name}) internal error")
+                self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
+                Timer.delay(recovery_time)
+            else:
+                break
+        else:
+            self.ERROR(f"number of tries exceeds {num_tries}")
 
+            response = PaperResultFail(
+                message="LLM internal error during summarization",
+            )
 
+        timer.lap()
 
+        if not response.error:
+            summary = (
+                [response.keyword_kr, response.keyword_en]
+                if item == "keyword" else
 
+                response.summary
+            )
 
+        else:
+            summary = [[], []] if item == "keyword" else ""
+
+        self.INFO(
+            f"**** FILE {Q(file_.name)} ITEM: {Q(item)} "
+            f"TIME: {timer.seconds:.1f}s"
+        )
+
+        self.INFO(
+            f"{self.header} SUMMARIZE proceed DONE "
+            f"[{next(count):02d}/{total:02d}] proceed DONE"
+        )
+
+        return summary
+
+    def _extract_summary_sections(
+            self,
+            paper_df: pd.DataGrame,
+            num_tries: int,
+            recovery_time: int
+        ) -> pd.DataFrame:
+
+        total = paper_df.groupby(["file"], sort=False).size().shape[0]
+
+        summary_df = paper_df.groupby(["file"], sort=False)[
+            ["document"]
+        ].apply(
+            self._extract_summary_section_foreach,
+            count=itertools.count(1),
+            total=total,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        ).reset_index()
+
+        return summary_df
+
+    def _extract_summary_section_foreach(
+            self,
+            group: pd.DataFrame,
+            count: Callable[..., Iterator[int]],
+            total: int,
+            num_tries: int,
+            recovery_time: int
+        ) -> pd.Series:
+
+        file_ = group.name
+
+        content = "\n".join(
+            group.document.apply(lambda field: field.page_content)
+        )
+
+        for i in range(num_tries):
+            try:
+                timer = Timer()
+
+                response = self.extract_gt_chain.invoke(
+                    input={
+                        "content": content,
+                    },
+                )
+
+            except KeyboardInterrupt as error:
+                raise error
+
+            except BaseException:
+                self.ERROR(f"LLM({self.model[1].model_name}) internal error")
+                self.ERROR(f"number of tries {i + 1}/{num_tries}")
+
+                Timer.delay(recovery_time)
+            else:
+                break
+        else:
+            self.ERROR(f"number of tries exceeds {num_tries}")
+
+            response = PaperSummaryTemplate(
+                abstract="",
+                outcome="",
+                expectation="",
+                keyword_kr=[],
+                keyword_en=[],
+            )
+
+        timer.lap()
+
+        items = self._generate_items(response)
+        summary, html = self._formatize(items)
+
+        timer.lap()
+
+        self.INFO(
+            f"FILE {Q(file_.name)} ITEM: summary "
+            f"TIME: {timer.seconds:.1f}s"
+        )
+
+        self.INFO(
+            f"{self.header} EXTRACT SUMMARY proceed DONE "
+            f"[{next(count):02d}/{total:02d}] proceed DONE"
+        )
+
+        return pd.Series({
+            "summary": summary,
+            "html": html,
+            "time": timer.seconds
+        })
+
+    def _generate_items(self,
+                        summary: PaperSummaryTemplate
+                        ) -> list[dict[str, Any]]:
+        summary_dict = summary.model_dump()
+
+        summary_dict["keyword"] = []
+
+        for name in ["keyword_kr", "keyword_en"]:
+            summary_dict["keyword"].append(summary_dict[name])
+            summary_dict.pop(name)
+
+        items = [
+            {
+                "item": key,
+                "title": self.layout.summary[key]["title"],
+                "content": value,
+            } for key, value in summary_dict.items()
+        ]
+
+        return items
+
+    def _formatize(self,
+                   records: list[dict[str, Any]]
+                   ) -> tuple[str, dict[str, Any]]:
+        summary = {
+            record["item"]: {
+                "title": record["title"],
+                "content": record["content"],
+            } for record in records
+        }
+
+        html_args = {
+            "css_content": self._css_text,
+            "num_keywords": self._num_keywords,
+        }
+
+        for item, record in summary.items():
+            title, content = [
+                record[key] for key in ["title", "content"]
+            ]
+
+            args = {f"{item}_title": title}
+
+            if item == "keyword":
+                keyword_text = self._decorate_keywords(content)
+
+                args |= {
+                    "keyword_kr": keyword_text[0],
+                    "keyword_en": keyword_text[1],
+                }
+            else:
+                args |= {
+                    f"{item}_content": content,
+                }
+
+            html_args |= args
+
+        html = self._html_text.format(**html_args)
+
+        return summary, html
+
+    def _decorate_keywords(self,
+                           all_keywords: list[list[str]]
+                           ) -> list[str]:
+        all_keywords = [
+            pad_list(keywords, self._num_keywords)
+            for keywords in all_keywords
+        ]
+
+        return [
+            "\n".join([
+                f"<td>{keyword}</td>"
+                for keyword in keywords
+            ])
+            for keywords in all_keywords
+        ]
 
     @property
     def layout(self) -> Struct:
         return self._layout
+
+    @property
+    def extract_gt_chain(self) -> Runnable:
+        return self._extract_gt_chain
+
+    @extract_gt_chain.setter
+    def extract_gt_chain(self, chain: Runnable) -> None:
+        self._extract_gt_chain = chain

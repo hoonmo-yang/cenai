@@ -26,9 +26,9 @@ export:
   extension:
   - .xlsx
 
-model:
-  - gpt-4o
-  - gpt-3.5-turbo
+models:
+  - [gpt-4o]
+  - [gpt-3.5-turbo]
 
 corpora:
 - mode:

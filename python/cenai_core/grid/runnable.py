@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Any, Optional, Sequence
 
 from abc import ABC, abstractmethod
 from itertools import product
@@ -9,6 +9,7 @@ from pathlib import Path
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable, RunnableLambda
 
 from cenai_core.dataman import (
     concat_texts, load_json_yaml, optional, Q, Struct
@@ -25,7 +26,7 @@ class GridRunnable(Logger, ABC):
     data_dir = cenai_path("data")
 
     def __init__(self,
-                 model: str,
+                 models: Sequence[str],
                  case_suffix: str,
                  corpus_part: str,
                  metadata: Struct
@@ -50,7 +51,7 @@ class GridRunnable(Logger, ABC):
         self._case_id = "_".join([
             token for token in [
                 corpus_part,
-                model,
+                "-".join(models),
                 self.metadata.module,
                 case_suffix,
             ] if token
@@ -69,10 +70,7 @@ class GridRunnable(Logger, ABC):
         self._content_dir = self._source_dir / "content"
         self._html_dir = self._source_dir / "html"
 
-        LangchainHelper.bind_model(model)
-
-        self._model = LangchainHelper.load_model()
-        self._embeddings = LangchainHelper.load_embeddings()
+        self._model, self._embeddings = self._load_model(models)
 
         self._metadata_df = pd.DataFrame({
             "suite_id": [self.suite_id],
@@ -83,7 +81,7 @@ class GridRunnable(Logger, ABC):
             "institution": [self.metadata.institution],
             "task": [self.metadata.task],
             "tags": [",".join(self.metadata.tags)],
-            "model": [self.model.model_name],
+            "models": [",".join(models)],
             "module": [self.metadata.module],
             "corpus_mode": [self.metadata.corpus_mode],
             "corpus_prefix": [self.metadata.corpus_prefix],
@@ -93,6 +91,25 @@ class GridRunnable(Logger, ABC):
         })
 
         self._result_df = pd.DataFrame()
+
+        self._main_chain = RunnableLambda(
+            lambda _: ""
+        )
+
+        self._chain_config = {}
+
+    def _load_model(self,
+                    model_names: list[str]
+                    ) -> tuple[list[BaseChatModel], list[Embeddings]]:
+        models = []
+        all_embeddings = []
+
+        for model_name in model_names:
+            LangchainHelper.bind_model(model_name)
+            models.append(LangchainHelper.load_model())
+            all_embeddings.append(LangchainHelper.load_embeddings())
+
+        return models, all_embeddings
 
     def _load_dataset(self) -> dict[str, pd.DataFrame]:
         if self.metadata.corpus_mode not in ["dataset",]:
@@ -246,3 +263,19 @@ class GridRunnable(Logger, ABC):
     @result_df.setter
     def result_df(self, value: pd.DataFrame) -> None:
         self._result_df = value
+
+    @property
+    def main_chain(self) -> Runnable:
+        return self._main_chain
+
+    @main_chain.setter
+    def main_chain(self, value: Runnable) -> None:
+        self._main_chain = value
+
+    @property
+    def chain_config(self) -> dict[str, Any]:
+        return self._chain_config
+
+    @chain_config.setter
+    def chain_config(self, value: dict[str, Any]) -> None:
+        self._chain_config = value

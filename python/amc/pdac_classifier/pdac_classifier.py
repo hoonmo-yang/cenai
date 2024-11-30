@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from langchain_community.document_transformers import LongContextReorder
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.documents import Document
-from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables import RunnableLambda
 
 from cenai_core import Timer
 from cenai_core.dataman import (load_text, optional, Q, Struct)
@@ -32,7 +32,7 @@ class PDACClassifier(GridRunnable, ABC):
     logger_name = "cenai.amc.pdac_classifier"
 
     def __init__(self,
-                 model,
+                 models: Sequence[str],
                  sections: Sequence[str],
                  case_suffix: str,
                  metadata: Struct
@@ -49,7 +49,7 @@ class PDACClassifier(GridRunnable, ABC):
         ])
 
         super().__init__(
-            model=model,
+            models=models,
             case_suffix=case_suffix,
             corpus_part=corpus_part,
             metadata=metadata,
@@ -57,7 +57,7 @@ class PDACClassifier(GridRunnable, ABC):
 
         self.metadata_df.loc[0, "sections"] = ",".join(self._sections)
 
-        self._classify_chain = RunnableLambda(
+        self.main_chain = RunnableLambda(
             lambda _: PDACClassifyResult(
                 type="Not available",
                 reason="PDACClassifier not implemented",
@@ -142,18 +142,20 @@ class PDACClassifier(GridRunnable, ABC):
             try:
                 timer = Timer()
 
-                response = self.classify_chain.invoke(
-                    {
+                response = self.main_chain.invoke(
+                    input={
                         "content": content,
                         "question": question,
-                    } | context.parameter
+                    } | context.parameter,
+
+                    config=self.chain_config,
                 )
 
             except KeyboardInterrupt as error:
                 raise error
 
             except BaseException:
-                self.ERROR(f"LLM({self.model.model_name}) internal error")
+                self.ERROR(f"LLM({self.model[0].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
@@ -164,7 +166,7 @@ class PDACClassifier(GridRunnable, ABC):
 
             response = PDACClassifyResult(
                 type="Not available",
-                reason = f"LLM({self.model.model_name}) internal error",
+                reason = f"LLM({self.model[0].model_name}) internal error",
             )
 
         timer.lap()
@@ -252,14 +254,6 @@ class PDACClassifier(GridRunnable, ABC):
     @property
     def sections(self) -> list[str]:
         return self._sections
-
-    @property
-    def classify_chain(self) -> Runnable:
-        return self._classify_chain
-
-    @classify_chain.setter
-    def classify_chain(self, chain: Runnable) -> None:
-        self._classify_chain = chain
 
     @property
     def question(self) -> str:

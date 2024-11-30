@@ -6,6 +6,7 @@ from pathlib import Path
 import random
 import re
 import textwrap
+import unicodedata
 import yaml
 
 
@@ -196,3 +197,23 @@ def divide_evenly(total: int, n: int) -> list[int]:
     ]
 
     return splits
+
+
+def split_by_length(text: str, n: int, pad: str = "") -> list[str]:
+    if len(pad) > 1:
+        raise ValueError(
+            f"length of pad must be less than 2: {Q(pad)}"
+        )
+
+    r = len(text) % n
+    if r:
+        text += pad * (n - r)
+
+    return [text[i:i+n] for i in range(0, len(text), n)]
+
+
+def pad_list(texts: list[str], n: int, padding="") -> list[str]:
+    texts = texts[:]
+    texts.extend([padding] * (n - len(texts)))
+
+    return texts[:n]

@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from operator import itemgetter
 
 from langchain_community.vectorstores import FAISS
@@ -15,8 +17,8 @@ from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
 
 class VanilaRagClassifier(PDACClassifier):
     def __init__(self,
-                 model: str,
-                 sections: list[str],
+                 models: Sequence[str],
+                 sections: Sequence[str],
                  topk: int,
                  classify_prompt: str,
                  question: str,
@@ -30,7 +32,7 @@ class VanilaRagClassifier(PDACClassifier):
         ])
 
         super().__init__(
-            model=model,
+            models=models,
             sections=sections,
             case_suffix=case_suffix,
             metadata=metadata,
@@ -56,7 +58,7 @@ class VanilaRagClassifier(PDACClassifier):
 
         retriever = self._build_retriever()
 
-        self.classify_chain = self._build_classify_chain(
+        self.main_chain = self._build_classify_chain(
             classify_prompt=classify_prompt,
             retriever=retriever,
         )
@@ -109,7 +111,7 @@ class VanilaRagClassifier(PDACClassifier):
                 ),
             }) |
             prompt |
-            self.model.with_structured_output(PDACClassifyResult)
+            self.model[0].with_structured_output(PDACClassifyResult)
         )
 
         self.INFO(f"{self.header} CHAIN prepared DONE")

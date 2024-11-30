@@ -1,13 +1,10 @@
 from __future__ import annotations
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterator, Optional, Sequence
 
 import itertools
-from pathlib import Path
 import pandas as pd
 import re
 
-from langchain_core.runnables import Runnable, RunnableLambda
-from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
 
 from cenai_core import Timer
@@ -28,7 +25,7 @@ class QADatasetGenerator(GridRunnable):
     )
 
     def __init__(self,
-                 model,
+                 models: Sequence[str],
                  chunk_size: int,
                  chunk_overlap: int,
                  num_datasets: int,
@@ -56,7 +53,7 @@ class QADatasetGenerator(GridRunnable):
         ])
 
         super().__init__(
-            model=model,
+            models=models,
             case_suffix=case_suffix,
             corpus_part=corpus_part,
             metadata=metadata,
@@ -81,10 +78,6 @@ class QADatasetGenerator(GridRunnable):
             num_datasets,
             max_tokens,
         ]
-
-        self._generate_chain = RunnableLambda(
-            lambda _: ""
-        )
 
     def run(self, **directive) -> None:
         self._generate_qa_dataset(**directive)
@@ -114,17 +107,19 @@ class QADatasetGenerator(GridRunnable):
             chunk_overlap=self._chunk_overlap,
         )
 
-        document_df[["num_per_chunk", "document"]] = document_df.apply(
+        columns = ["num_per_chunk", "document"]
+
+        document_df[columns] = document_df.apply(
             self._split_document_foreach,
             count=itertools.count(1),
             total=document_df.shape[0],
             splitter=splitter,
             axis=1
         )
+        
+        document_df = document_df.explode(columns).reset_index( drop=True)
 
-        document_df = document_df.explode(
-            ["num_per_chunk", "document"]
-        ).reset_index(drop=True)
+        columns = ["문제", "정답"]
 
         self.result_df = document_df.apply(
             self._generate_qa_dataset_foreach,
@@ -133,9 +128,7 @@ class QADatasetGenerator(GridRunnable):
             num_tries=num_tries,
             recovery_time=recovery_time,
             axis=1
-        ).dropna(how="all").explode(
-            ["문제", "정답"]
-        ).reset_index(drop=True)
+        ).dropna(how="all").explode(columns).reset_index(drop=True)
 
         self.INFO(f"{self.header} QA-DATASET GENERATE proceed DONE")
 
@@ -188,18 +181,19 @@ class QADatasetGenerator(GridRunnable):
             try:
                 timer = Timer()
 
-                response = self.generate_chain.invoke(
-                    {
+                response = self.main_chain.invoke(
+                    input={
                         "num_datasets": num_per_chunk,
                         "max_tokens": self._max_tokens,
                         "context": document.page_content,
-                    }
+                    },
+                    config=self.chain_config,
                 )
             except KeyboardInterrupt as error:
                 raise error
 
             except BaseException:
-                self.ERROR(f"LLM({self.model.model_name}) internal error")
+                self.ERROR(f"LLM({self.model[0].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
@@ -255,11 +249,3 @@ class QADatasetGenerator(GridRunnable):
             )
 
         return questions, answers
-
-    @property
-    def generate_chain(self) -> Runnable:
-        return self._generate_chain
-
-    @generate_chain.setter
-    def generate_chain(self, chain: Runnable) -> None:
-        self._generate_chain = chain

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional, Sequence
 
 import itertools
 import pandas as pd
@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from langchain_community.document_transformers import LongContextReorder
 from langchain_core.documents import Document
-from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables import RunnableLambda
 
 from cenai_core import Timer
 from cenai_core.dataman import load_text, optional, Q, Struct
@@ -26,20 +26,20 @@ class PDACSummarizer(GridRunnable):
     logger_name = "cenai.amc.pdac_summarizer"
 
     def __init__(self,
-                 model: str,
+                 models: Sequence[str],
                  case_suffix: str,
                  metadata: Struct
                  ):
         corpus_part = metadata.corpus_stem
 
         super().__init__(
-            model=model,
+            models=models,
             case_suffix=case_suffix,
             corpus_part=corpus_part,
             metadata=metadata,
         )
 
-        self._summarize_chain = RunnableLambda(
+        self.main_chain = RunnableLambda(
             lambda _: PDACReportTemplateFail(message="Not initialized yet")
         )
 
@@ -102,17 +102,19 @@ class PDACSummarizer(GridRunnable):
             try:
                 timer = Timer()
 
-                pdac_report = self.summarize_chain.invoke({
-                    "content": content,
-                    "question": question,
-
-                })
+                pdac_report = self.main_chain.invoke(
+                    input={
+                        "content": content,
+                        "question": question,
+                    },
+                    config=self.chain_config,
+                )
 
             except KeyboardInterrupt as error:
                 raise error
 
             except BaseException:
-                self.ERROR(f"LLM({self.model.model_name}) internal error")
+                self.ERROR(f"LLM({self.model[0].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
@@ -241,14 +243,6 @@ class PDACSummarizer(GridRunnable):
     def reorder_documents(documents: list[Document]) -> list[Document]:
         reordering = LongContextReorder()
         return reordering.transform_documents(documents)
-
-    @property
-    def summarize_chain(self) -> Runnable:
-        return self._summarize_chain
-
-    summarize_chain.setter
-    def summarize_chain(self, chain: Runnable) -> None:
-        self._summarize_chain = chain
 
     @property
     def question(self) -> str:

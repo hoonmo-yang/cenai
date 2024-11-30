@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import Runnable
@@ -10,7 +12,7 @@ from nrf.qa_dataset_generator import QADatasetGenerator
 
 class VanilaQADatasetGenerator(QADatasetGenerator):
     def __init__(self,
-                 model,
+                 models: Sequence[str],
                  chunk_size: int,
                  chunk_overlap: int,
                  num_datasets: int,
@@ -20,7 +22,7 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
                  ):
 
         super().__init__(
-            model=model,
+            models=models,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             num_datasets=num_datasets,
@@ -33,7 +35,7 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
 
         self.metadata_df.loc[0, "generate_prompt"] = generate_prompt
 
-        self.generate_chain = self._build_generate_chain(
+        self.main_chain = self._build_generate_chain(
             generate_prompt=generate_prompt,
         )
 
@@ -49,7 +51,7 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
 
         chain = (
             prompt |
-            self.model |
+            self.model[0] |
             StrOutputParser()
         )
 

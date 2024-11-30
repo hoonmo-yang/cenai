@@ -28,11 +28,12 @@ export:
   extension:
   - .xlsx
 
-model:
-- hcx-003
+models:
+  #- [hcx-003, gpt-4o]
+  - [gpt-4o, gpt-4o]
 
 corpora:
-- type:
+- mode:
   - document
   prefix:
   - "sample"
@@ -45,25 +46,25 @@ corpora:
 cases:
 - module:
   - stuff_summarizer
-  - map_reduce_summarizer
+#  - map_reduce_summarizer
   content_kr:
+  - extract_gt_prompt
   - summarize_prompt
   - keyword_prompt
   parameter:
-  - chunk_size
-  - chunk_overlap
   - max_tokens
+  - num_keywords
 
 parameter:
-  chunk_size:
-  - 500
-  chunk_overlap:
-  - 50
   max_tokens:
-  - 600
+  - 800
+  num_keywords:
+  - 5
 
 content_kr:
-  summmarize_prompt:
+  extract_gt_prompt:
+  - pt-xgt-kr.yaml
+  summarize_prompt:
   - pt-sum-kr.yaml
   keyword_prompt:
   - pt-kwd-kr.yaml

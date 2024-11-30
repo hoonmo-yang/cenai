@@ -1,33 +1,36 @@
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import Runnable
+from typing import Sequence
+
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import Runnable, RunnableBranch, RunnableLambda
 
 from cenai_core.dataman import Struct
-from cenai_core.langchain_helper import load_chatprompt
+from cenai_core.langchain_helper import load_prompt
 
-from nrf.paper_summarizer import PaperSummarizer
+from nrf.paper_summarizer import (
+    PaperSummarizer, PaperSummaryTemplate,
+    PaperResultFail, PaperResultSummary, PaperResultKeyword
+)
 
 class StuffSummarizer(PaperSummarizer):
     def __init__(self,
-                 model: str,
-                 chunk_size: int,
-                 chunk_overlap: int,
-                 max_tokens: int,
+                 models: Sequence[str],
                  num_keywords: int,
+                 max_tokens: int,
+                 extract_gt_prompt: str,
                  summarize_prompt: str,
                  keyword_prompt: str,
                  metadata: Struct
                  ):
 
         case_suffix = "_".join([
+            extract_gt_prompt.split(".")[0],
             summarize_prompt.split(".")[0],
             keyword_prompt.split(".")[0],
         ])
 
         super().__init__(
-            model=model,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
+            models=models,
             num_keywords=num_keywords,
             max_tokens=max_tokens,
             case_suffix=case_suffix,
@@ -39,55 +42,103 @@ class StuffSummarizer(PaperSummarizer):
         self.metadata_df.loc[
             0, 
             [
+                "extract_gt_prompt",
                 "summarize_prompt",
                 "keyword_prompt",
             ]] = [
+                extract_gt_prompt,
                 summarize_prompt,
                 keyword_prompt,
             ]
 
-        self.summarizer_chain = self._create_summarizer_chain(
+        self.main_chain = self._build_main_chain(
             summarize_prompt=summarize_prompt,
+            keyword_prompt=keyword_prompt,
         )
 
-        self.keyword_chain = self._create_keyword_chain(
-            keyword_prompt=keyword_prompt,
+        self.extract_gt_chain = self._build_extract_gt_chain(
+            extract_gt_prompt=extract_gt_prompt,
         )
 
         self.INFO(f"{self.header} prepared DONE")
 
     
-    def _create_summarizer_chain(self,
-                                 summarize_prompt: str
-                                 ) -> Runnable:
-        self.INFO(f"{self.header} SUMMARIZE CHAIN prepared ....")
+    def _build_main_chain(self,
+                          summarize_prompt: str,
+                          keyword_prompt: str
+                          ) -> Runnable:
+        self.INFO(f"{self.header} MAIN CHAIN prepared ....")
 
-        prompt_args = load_chatprompt(self.content_dir / summarize_prompt)
-        prompt = ChatPromptTemplate(**prompt_args)
+        branches = [
+            Struct(
+                {
+                    "pydantic_object": PaperResultSummary,
+                    "prompt": summarize_prompt,
+                    "condition": lambda x: x["item"] != "keyword",
+                }
+            ),
+            Struct(
+                {
+                    "pydantic_object": PaperResultKeyword,
+                    "prompt": keyword_prompt,
+                    "condition": lambda x: x["item"] == "keyword",
+                }
+            ),
+        ]
 
-        chain = (
-            prompt |
-            self.model |
-            StrOutputParser()
+        statements = []
+
+        for branch in branches:
+            parser = PydanticOutputParser(
+                pydantic_object=branch.pydantic_object,
+            )
+
+            prompt_args, partials = load_prompt(self.content_dir / branch.prompt)
+
+            full_args = prompt_args | {
+                "partial_variables": {
+                    partials[0]: parser.get_format_instructions(),
+                },
+            }
+
+            prompt = PromptTemplate(**full_args)
+
+            statements.append((branch.condition, prompt | self.model[0] | parser))
+
+        statements.append(
+            RunnableLambda(lambda _: PaperResultFail(
+                message="Invalid item",
+            ))
         )
 
-        self.INFO(f"{self.header} SUMMARIZE CHAIN prepared DONE")
+        chain = RunnableBranch(*statements)
+
+        self.INFO(f"{self.header} MAIN CHAIN prepared DONE")
         return chain
 
 
-    def _create_keyword_chain(self,
-                              keyword_prompt: str
-                              ) -> Runnable:
-        self.INFO(f"{self.header} KEYWORD CHAIN prepared ....")
+    def _build_extract_gt_chain(self,
+                                extract_gt_prompt: str,
+                                ) -> Runnable:
+        self.INFO(f"{self.header} EXTRACT GT CHAIN prepared ....")
 
-        prompt_args = load_chatprompt(self.content_dir / keyword_prompt)
-        prompt = ChatPromptTemplate(**prompt_args)
-
-        chain = (
-            prompt |
-            self.model |
-            StrOutputParser()
+        parser = PydanticOutputParser(
+            pydantic_object=PaperSummaryTemplate,
         )
 
-        self.INFO(f"{self.header} KEYWORD CHAIN prepared DONE")
+        prompt_args, partials = load_prompt(
+            self.content_dir / extract_gt_prompt
+        )
+
+        full_args = prompt_args | {
+            "partial_variables": {
+                partials[0]: parser.get_format_instructions(),
+            },
+        }
+
+        prompt = PromptTemplate(**full_args)
+
+        chain = prompt | self.model[1] | parser
+
+        self.INFO(f"{self.header} EXTRACT GT CHAIN prepared DONE")
         return chain
