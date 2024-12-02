@@ -6,7 +6,6 @@ from pathlib import Path
 import random
 import re
 import textwrap
-import unicodedata
 import yaml
 
 
@@ -217,3 +216,20 @@ def pad_list(texts: list[str], n: int, padding="") -> list[str]:
     texts.extend([padding] * (n - len(texts)))
 
     return texts[:n]
+
+
+def get_empty_html() -> str:
+    html = """
+    <!DOCTYPE html>
+    <html lang="kr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title></title>
+    </head>
+    <body>
+    </body>
+    </html>
+    """
+
+    return dedent(html)

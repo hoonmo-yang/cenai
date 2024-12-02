@@ -29,8 +29,7 @@ export:
   - .xlsx
 
 models:
-  #- [hcx-003, gpt-4o]
-  - [gpt-4o, gpt-4o]
+  # - [gpt-4o, gpt-4o]
 
 corpora:
 - mode:
@@ -40,45 +39,31 @@ corpora:
   stem:
   - "*"
   extension:
-  - .hwp
+  # - .hwp
 
 cases:
-# - module:
-#   - stuff_summarizer
-#   content_kr:
-#   - extract_gt_prompt
-#   - similarity_prompt
-#   - summarize_prompt
-#   - keyword_prompt
-#   parameter:
-#   - max_tokens
-#   - num_keywords
-  - module:
-    - map_reduce_summarizer
-    content_kr:
-    - extract_gt_prompt
-    - similarity_prompt
-    - summarize_prompt
-    - keyword_prompt
-    - map_reduce_prompt
-    parameter:
-    - max_tokens
-    - num_keywords
-    - num_map_reduce_tokens
+- # module:
+  # - stuff_summarizer or map_reduce_summarizer
+  content_kr:
+  - extract_gt_prompt
+  - summarize_prompt
+  - extract_gt_prompt
+  parameter:
+  - max_tokens
+  - num_keywords
+  # - num_map_reduce_tokens
 
 parameter:
   max_tokens:
   - 800
+  num_map_reduce_tokens:
+  - 800
   num_keywords:
   - 5
-  num_map_reduce_tokens:
-  - 400
 
 content_kr:
   extract_gt_prompt:
   - pt-xgt-kr.yaml
-  similarity_prompt:
-  - pt-sim-kr.yaml
   summarize_prompt:
   - pt-sum-kr.yaml
   keyword_prompt:

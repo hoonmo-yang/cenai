@@ -2,12 +2,15 @@ from __future__ import annotations
 from typing import Any, Callable, Iterator, Optional, Union
 
 import itertools
+import json
 import pandas as pd
 from pathlib import Path
 from rapidfuzz import fuzz, process
 
 from langchain_core.documents import Document
-from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import Runnable
 
 from cenai_core import Timer
 
@@ -16,10 +19,13 @@ from cenai_core.dataman import (
 )
 
 from cenai_core.grid import GridRunnable
-from cenai_core.langchain_helper import LineTextSplitter, load_documents
+
+from cenai_core.langchain_helper import (
+    LineTextSplitter, load_documents, load_prompt
+)
 
 from nrf.paper_summarizer.paper_template import (
-    PaperResultFail, PaperSummaryTemplate
+    PaperResultFail, PaperResultSimilarity, PaperSummaryTemplate
 )
 
 
@@ -30,11 +36,15 @@ class PaperSummarizer(GridRunnable):
                  models: list[str],
                  num_keywords: int,
                  max_tokens: int,
+                 extract_gt_prompt: str,
+                 similarity_prompt: str,
                  case_suffix: str,
                  metadata: Struct
                  ):
         
         case_suffix = "_".join([
+            extract_gt_prompt.split(".")[0],
+            similarity_prompt.split(".")[0],
             case_suffix,
             f"kw{num_keywords}",
             f"tk{max_tokens}",
@@ -59,18 +69,26 @@ class PaperSummarizer(GridRunnable):
         self.metadata_df.loc[
             0,
             [
+                "extract_gt_prompt",
+                "similarity_prompt",
                 "num_keywords",
                 "max_tokens",
              ]
         ] = [
+            extract_gt_prompt,
+            similarity_prompt,
             num_keywords,
             max_tokens,
         ]
 
         self._layout = self._get_layout()
 
-        self._extract_gt_chain = RunnableLambda(
-            lambda _: ""
+        self._extract_gt_chain = self._build_extract_gt_chain(
+            extract_gt_prompt=extract_gt_prompt,
+        )
+
+        self._similarity_chain = self._build_similarity_chain(
+            similarity_prompt=similarity_prompt,
         )
 
         css_file = self.html_dir / "styles.css"
@@ -78,6 +96,58 @@ class PaperSummarizer(GridRunnable):
 
         html_file = self.html_dir / "html_template.html"
         self._html_text = html_file.read_text()
+
+    def _build_extract_gt_chain(self,
+                                extract_gt_prompt: str,
+                                ) -> Runnable:
+        self.INFO(f"{self.header} EXTRACT GT CHAIN prepared ....")
+
+        parser = PydanticOutputParser(
+            pydantic_object=PaperSummaryTemplate,
+        )
+
+        prompt_args, partials = load_prompt(
+            self.content_dir / extract_gt_prompt
+        )
+
+        full_args = prompt_args | {
+            "partial_variables": {
+                partials[0]: parser.get_format_instructions(),
+            },
+        }
+
+        prompt = PromptTemplate(**full_args)
+
+        chain = prompt | self.model[1] | parser
+
+        self.INFO(f"{self.header} EXTRACT GT CHAIN prepared DONE")
+        return chain
+
+    def _build_similarity_chain(self,
+                                similarity_prompt: str,
+                                ) -> Runnable:
+        self.INFO(f"{self.header} SIMILARITY CHAIN prepared ....")
+
+        parser = PydanticOutputParser(
+            pydantic_object=PaperResultSimilarity,
+        )
+
+        prompt_args, partials = load_prompt(
+            self.content_dir / similarity_prompt
+        )
+
+        full_args = prompt_args | {
+            "partial_variables": {
+                partials[0]: parser.get_format_instructions(),
+            },
+        }
+
+        prompt = PromptTemplate(**full_args)
+
+        chain = prompt | self.model[1] | parser
+
+        self.INFO(f"{self.header} SIMILARITY CAHIN prepared DONE")
+        return chain
 
     def _get_layout(self) -> Struct:
         layout_file = self.content_dir / "paper-layout.yaml"
@@ -126,9 +196,84 @@ class PaperSummarizer(GridRunnable):
             on=["file"],
             how="outer",
             suffixes=["_pv", "_gt"],
+        ).pipe(
+            self._compare_similarity,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
         )
 
         self.INFO(f"{self.header} PAPER SUMMARY proceed DONE")
+
+    def _compare_similarity(self,
+                            result_df: pd.DataFrame,
+                            num_tries: int,
+                            recovery_time: int
+                            ) -> pd.DataFrame:
+        columns = ["file", "similarity", "difference"]
+
+        result_df[columns] = result_df.apply(
+            self._compare_similarity_foreach,
+            count=itertools.count(1),
+            total=result_df.shape[0],
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+            axis=1
+        )
+
+        return result_df
+
+    def _compare_similarity_foreach(self,
+                                    field: pd.Series,
+                                    count: Callable[..., Iterator[int]],
+                                    total: int,
+                                    num_tries: int,
+                                    recovery_time: int
+                                    ) -> pd.Series:
+        file_ = field.file
+        summary_pv = json.dumps(field.summary_pv, ensure_ascii=False)
+        summary_gt = json.dumps(field.summary_gt, ensure_ascii=False)
+        
+        for i in range(num_tries):
+            try:
+                timer = Timer()
+
+                response = self.similarity_chain.invoke(
+                    input={
+                        "gt_content": summary_pv,
+                        "pv_content": summary_gt,
+                    },
+                )
+
+            except KeyboardInterrupt as error:
+                raise error
+
+            except BaseException:
+                self.ERROR(f"LLM({self.model[1].model_name}) internal error")
+                self.ERROR(f"number of tries {i + 1}/{num_tries}")
+
+                Timer.delay(recovery_time)
+            else:
+                break
+        else:
+            self.ERROR(f"number of tries exceeds {num_tries}")
+
+            response = PaperResultSimilarity(
+                score=0.0,
+                difference="LLM internal error",
+            )
+
+        self.INFO(
+            f"** FILE {Q(file_.name)} [{next(count):02d}/{total:02d}] "
+            f"TIME: {timer.seconds:.1f}s SIMILARITY proceed DONE"
+        )
+
+        entry = pd.Series({
+            "file": str(field.file),
+            "similarity": response.score,
+            "difference":  response.difference,
+        })
+
+        return entry
 
     def _split_papers_by_section(self) -> pd.DataFrame:
         splitter = LineTextSplitter(chunk_size=50)
@@ -613,6 +758,6 @@ class PaperSummarizer(GridRunnable):
     def extract_gt_chain(self) -> Runnable:
         return self._extract_gt_chain
 
-    @extract_gt_chain.setter
-    def extract_gt_chain(self, chain: Runnable) -> None:
-        self._extract_gt_chain = chain
+    @property
+    def similarity_chain(self) -> Runnable:
+        return self._similarity_chain

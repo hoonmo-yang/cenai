@@ -152,8 +152,13 @@ graph.add_edge("generate_final_summary", END)
 
 app = graph.compile()
 
+#contents = [
+#    document.page_content for document in split_documents
+#]
 contents = [
-    document.page_content for document in split_documents
+    "hello world",
+    "hello",
+    "world",
 ]
 
 response = app.invoke(

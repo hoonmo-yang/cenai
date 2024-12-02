@@ -68,6 +68,22 @@ class PaperResultKeyword(PaperResult):
     )
 
 
+class PaperResultSimilarity(PaperResult):
+    class Config:
+        title = "논문 요약 유사도 비교 점수"
+        description = "논문 요약 유사도 비교 점수"
+
+    score: float = Field(
+        ...,
+        description="요약 유사도 점수" 
+    )
+
+    difference: str = Field(
+        ...,
+        description="요약이 다른 부분에 대한 설명"
+    ),
+
+
 class PaperResultFail(PaperResult):
     class Config:
         title = "결과 추출 실패"

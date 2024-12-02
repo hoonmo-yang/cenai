@@ -143,7 +143,7 @@ class GridRunner(BaseRunner):
                 keyword_values = template.pop(context.keyword, [])
 
                 if keyword_values is None:
-                    raise ValueError(f"{Q(context.keyword)} key does not exist"
+                    raise ValueError(f"{Q(context.keyword)} key does not exist "
                                      f"or is empty in {ordinal(i + 1)} element"
                                      f"of {Q(key)} key in {location}")
 
