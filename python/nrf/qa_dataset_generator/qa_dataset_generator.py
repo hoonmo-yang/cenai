@@ -42,13 +42,22 @@ class QADatasetGenerator(GridRunnable):
             f"tk{max_tokens}",
         ])
 
+        corpus_stem = metadata.corpus_stem
+        corpus_ext = metadata.corpus_ext
+
+        if isinstance(corpus_stem, str):
+            corpus_stem = [corpus_stem]
+
+        if isinstance(corpus_ext, str):
+            corpus_ext = [corpus_ext]
+
         corpus_part = "_".join([
             metadata.corpus_prefix,
             "-".join(
-                [stem for stem in metadata.corpus_stem if stem]
+                [stem for stem in corpus_stem if stem]
             ),
             "-".join([
-                extension[1:] for extension in metadata.corpus_ext
+                extension[1:] for extension in corpus_ext
                 if extension]),
         ])
 

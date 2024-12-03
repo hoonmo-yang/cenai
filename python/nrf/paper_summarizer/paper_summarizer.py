@@ -50,10 +50,23 @@ class PaperSummarizer(GridRunnable):
             f"tk{max_tokens}",
         ])
 
+        corpus_stem = metadata.corpus_stem
+        corpus_ext = metadata.corpus_ext
+
+        if isinstance(corpus_stem, str):
+            corpus_stem = [corpus_stem]
+
+        if isinstance(corpus_ext, str):
+            corpus_ext = [corpus_ext]
+
         corpus_part = "_".join([
             metadata.corpus_prefix,
-            metadata.corpus_stem,
-            metadata.corpus_ext.split(".")[-1],
+            "-".join(
+                [stem for stem in corpus_stem if stem]
+            ),
+            "-".join([
+                extension[1:] for extension in corpus_ext
+                if extension]),
         ])
 
         super().__init__(
@@ -94,8 +107,11 @@ class PaperSummarizer(GridRunnable):
         css_file = self.html_dir / "styles.css"
         self._css_text = f"<style>\n{css_file.read_text()}\n</style>"
 
-        html_file = self.html_dir / "html_template.html"
-        self._html_text = html_file.read_text()
+        html_file = self.html_dir / "html_summary.html"
+        self._html_summary = html_file.read_text()
+
+        html_file = self.html_dir / "html_eval.html"
+        self._html_eval = html_file.read_text()
 
     def _build_extract_gt_chain(self,
                                 extract_gt_prompt: str,
@@ -209,7 +225,7 @@ class PaperSummarizer(GridRunnable):
                             num_tries: int,
                             recovery_time: int
                             ) -> pd.DataFrame:
-        columns = ["file", "similarity", "difference"]
+        columns = ["file", "similarity", "difference", "html_eval"]
 
         result_df[columns] = result_df.apply(
             self._compare_similarity_foreach,
@@ -262,17 +278,20 @@ class PaperSummarizer(GridRunnable):
                 difference="LLM internal error",
             )
 
+        args = {
+            "file": str(field.file),
+            "similarity": response.score,
+            "difference":  response.difference,
+        }
+
+        html_args = {"css_content": self._css_text} | args
+        html_eval = self._html_eval.format(**html_args)
+        entry = pd.Series(args|{"html_eval": html_eval,})
+
         self.INFO(
             f"** FILE {Q(file_.name)} [{next(count):02d}/{total:02d}] "
             f"TIME: {timer.seconds:.1f}s SIMILARITY proceed DONE"
         )
-
-        entry = pd.Series({
-            "file": str(field.file),
-            "similarity": response.score,
-            "difference":  response.difference,
-        })
-
         return entry
 
     def _split_papers_by_section(self) -> pd.DataFrame:
@@ -730,7 +749,7 @@ class PaperSummarizer(GridRunnable):
 
             html_args |= args
 
-        html = self._html_text.format(**html_args)
+        html = self._html_summary.format(**html_args)
 
         return summary, html
 

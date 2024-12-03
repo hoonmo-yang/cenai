@@ -254,7 +254,7 @@ class GridRunner(BaseRunner):
         datastore_dir = self.artifact_dir / prefix / "datastore"
         datastore_dir.mkdir(parents=True, exist_ok=True)
 
-        date = self.recipe.directive.get("fixed_data")
+        date = self.recipe.directive.get("fixed_date")
 
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d")

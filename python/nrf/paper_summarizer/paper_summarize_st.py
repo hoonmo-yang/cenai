@@ -17,6 +17,10 @@ class PaperSummarizationStreamlit(Logger):
     profile_file = profile_dir / "nrf-poc-otf.yaml"
 
     def __init__(self):
+        st.set_page_config(
+            layout="wide",
+        )
+
         self._profile = load_json_yaml(self.profile_file)
 
         if "result" not in st.session_state:
@@ -24,8 +28,7 @@ class PaperSummarizationStreamlit(Logger):
                 "select_file": [],
                 "html_gt": [],
                 "html_pv": [],
-                "similarity": [],
-                "difference": [],
+                "html_eval": [],
             }
 
         self._result = st.session_state.result
@@ -85,7 +88,9 @@ class PaperSummarizationStreamlit(Logger):
 
             result = {
                 key: result_df[key].tolist()
-                for key in ["html_gt", "html_pv", "similarity", "difference"]
+                for key in [
+                    "select_file", "html_gt", "html_pv", "html_eval",
+                ]
             }
             st.session_state.result = result
 
@@ -102,24 +107,17 @@ class PaperSummarizationStreamlit(Logger):
             )
 
         if result["select_file"]:
-            file_ = result["select_file"][choice]
-            similarity = result["similarity"][choice]
-            difference = result["difference"][choice]
             html_pv = result["html_pv"][choice]
             html_gt = result["html_gt"][choice]
+            html_eval = result["html_eval"][choice]
 
         else:
-            file_ = ""
-            similarity = ""
-            difference = ""
             html_pv = get_empty_html()
             html_gt = get_empty_html()
+            html_eval = get_empty_html()
 
-        st.table({
-            "file": [file_],
-            "similarity [0-10]": [similarity],
-            "difference": [difference],
-        })
+        st.subheader("요약 비교")
+        components.html(html_eval, height=350)
 
         left, right = st.columns(2)
 
