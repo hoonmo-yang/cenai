@@ -11,9 +11,9 @@ metadata:
 directive:
   langsmith: true
   replicate: false
-  fixed_date:
-  save: false
-  num_selects: 1
+  label: ""
+  save: true
+  num_selects: 2
   num_tries: 5
   recovery_time: 5
 
@@ -29,8 +29,8 @@ export:
   - json
   - xlsx
 
-model:
-- gpt-4o
+models:
+- [gpt-4o]
 
 corpora:
 - mode:
@@ -42,7 +42,7 @@ corpora:
   extension:
   - .json
   seeds:
-  - 0
+  - [[0, 8]]
   test_size:
   - 0.2
   keywords:

@@ -2,94 +2,82 @@ input_variables:
 - context
 - content
 
-messages:
-- role: system
-  content: |
-    You are requested to categorize the clinical context category of CT report for
-    a pancreatic cancer patient and to explain the reason behind your decision.
-    Using the clinical context category descriptions and the searched context,
-    determine which category the input CT report belongs to.
-    Clearly justify your reasoning based on the category.
+partial_variables:
+- format_instruction
 
-    *Category Descriptions*:
-    For patients with pancreatic cancer, clinical situations where imaging tests are conducted during the diagnostic and treatment process are
-    classified into the following four categories.
+template: |
+  You are requested to predict the clinical context type of CT report for
+  a pancreatic cancer patient and to explain the reason behind your decision.
+  Using the clinical context type descriptions and the searched context,
+  determine which type the input CT report belongs to.
+  Clearly justify your reasoning based on the type.
 
-    Situations requiring imaging include the 1. Initial diagnosis & staging category, where imaging is conducted either because pancreatic cancer is suspected
-    and diagnosis is needed, or to determine the stage of pancreatic cancer and evaluate surgical eligibility.
+  *Type Descriptions*:
+  For patients with pancreatic cancer, clinical situations where imaging tests are conducted during the diagnostic and treatment process are
+  classified into the following four categories.
 
-    The 2. Follow-up for pancreatic cancer without curative resection category applies when, based on the patient's condition or cancer stage,
-    surgery is deemed infeasible, and imaging is conducted to assess the treatment response following non-surgical treatment of pancreatic cancer.
+  Situations requiring imaging include the 1. Initial diagnosis & staging type, where imaging is conducted either because pancreatic cancer is suspected
+  and diagnosis is needed, or to determine the stage of pancreatic cancer and evaluate surgical eligibility.
 
-    The 3. Follow-up after curative resection of pancreatic cancer category applies if curative resection has been performed, and imaging is conducted post-surgery
-    to check for complications and recurrence of pancreatic cancer (until the initial diagnosis of recurrence).
+  The 2. Follow-up for pancreatic cancer without curative resection type applies when, based on the patient's condition or cancer stage,
+  surgery is deemed infeasible, and imaging is conducted to assess the treatment response following non-surgical treatment of pancreatic cancer.
 
-    Finally, the 4. Follow-up for tumor recurrence after curative resection category applies when recurrence of pancreatic cancer is confirmed post-curative resection,
-    and imaging is conducted to evaluate the response after treatment for the recurrent tumor.
+  The 3. Follow-up after curative resection of pancreatic cancer type applies if curative resection has been performed, and imaging is conducted post-surgery
+  to check for complications and recurrence of pancreatic cancer (until the initial diagnosis of recurrence).
 
-    A detailed description for each category is provided below.
+  Finally, the 4. Follow-up for tumor recurrence after curative resection type applies when recurrence of pancreatic cancer is confirmed post-curative resection,
+  and imaging is conducted to evaluate the response after treatment for the recurrent tumor.
 
-    Category 1. Initial diagnosis & staging:
+  A detailed description for each type is provided below.
 
-    This category includes situations where pancreatic cancer is first diagnosed when a patient visits the hospital for CT or MRI, or when the test is conducted
-    to determine the stage in patients suspected of having pancreatic cancer.
-    When the diagnosis is not strongly confirmed, differential diagnoses other than pancreatic cancer may be proposed.
-    CT and MRI reports focus on diagnosis and potential differential diagnoses, tumor size, vascular or organ invasion, lymph node metastasis,
-    and distant metastasis (e.g., liver, peritoneal, or distant lymph nodes).
+  Type 1. Initial diagnosis & staging:
+    •	This type applies when a patient undergoes CT or MRI for the initial diagnosis of pancreatic cancer or for tumor
+      staging when pancreatic cancer is suspected.
+    •	This includes cases where CT or MRI is performed for a confirmed pancreatic cancer diagnosis and CT or MRI is performed for staging.
+    •	In cases where a definitive diagnosis of pancreatic cancer is not confirmed, alternative differential diagnoses may be provided.
+    •	CT or MRI interpretations focus on the diagnosis of pancreatic cancer, the level of diagnostic certainty, possible differential diagnoses,
+      tumor involvement of adjacent vessels and organs, lymph node metastasis, and distant metastasis (e.g., liver, peritoneal, or distant lymph nodes).
+    Note:
+    •	For patients referred from another hospital with a suspected or confirmed pancreatic cancer diagnosis,
+      CT and MRI reports belonging to this clinical context type may include the change in tumor extent as well as tumor staging information.   
+    •	This type does not include follow-up scans after surgery, chemotherapy, or radiation therapy, which fall
+      under Type 2 (Follow-up for pancreatic cancer without curative resection) or Type 3 (Follow-up after curative resection of pancreatic cancer).
 
-    [Considerations for Classification]:
-    Patients transferred from another hospital with suspected or confirmed pancreatic cancer fall under this category if they have not yet undergone surgery or chemotherapy.
-    Patients who have already received treatment, such as surgery, chemotherapy, radiation, or neoadjuvant therapy, do not fall under this category and should
-    instead be classified under Category 2 (Follow-up for pancreatic cancer without curative resection) or Category 3 (Follow-up after curative resection of pancreatic cancer).
+  Type 2. Follow-up for pancreatic cancer without curative resection:
+    •	This type applies when CT or MRI is performed to monitor changes in unresected pancreatic cancer.
+    •	This type refers to CT and MRI examinations performed in patients with pancreatic cancer who have not undergone curative resection, instead receiving chemotherapy,
+      radiation, or conservative treatment, or being monitored without treatment.
+    •	CT or MRI report contents focus on changes in primary pancreatic tumor extent (i.e., tumor size and extent of adjacent organ or blood vessel involvement),
+      changes in existing metastasis, and new development of lymph node or distant metastasis. 
+    Note:
+    •	Patients who have undergone resection are not included in this type. Patients monitored for recurrence after resection are also excluded.
 
-    Category 2. Follow-up for pancreatic cancer without curative resection:
-    This category applies to patients who have not undergone curative resection after a pancreatic cancer diagnosis
-    but are undergoing non-surgical treatment (e.g., chemotherapy, radiation) or no treatment, followed by surveillance.
-    CT and MRI reports primarily focus on changes in the tumor's size, the extent of organ or vascular invasion, new lymph node metastasis or
-    distant metastasis, and alterations in pre-existing metastatic lesions.
+  Type 3. Follow-up after curative resection of pancreatic cancer:
+    •	Applies to patients who have undergone pancreatic cancer surgery, with CT or MRI performed to assess for postoperative complications and recurrence.
+    •	Imaging reports focus on the presence of absence of postoperative complications, local recurrence, lymph node metastasis, and distant metastasis.
+      Patients with uncertain findings of recurrence may also be included.
+    Note:
+    •	This type includes initial recurrence cases after curative resection of pancreatic cancer but not subsequent follow-ups of known recurrences,
+      which fall under Type 4 (Follow-up for tumor recurrence after curative resection).
 
-    [Considerations for Classification]:
-    Patients who have undergone resection for pancreatic cancer are not classified under this category.
+  Type 4. Follow-up for tumor recurrence after curative resection:
+    •	Applies when CT or MRI is performed to evaluate changes in a confirmed recurrence post-surgery, after treatment or observation.
+    •	Recurrent tumors include local recurrences, lymph node metastasis, and distant metastasis (e.g., liver, peritoneal, lung metastasis).
+    Note:
+    •	This type includes cases with known recurred tumors post-resection, focusing on changes in existing lesions and the development of new lesions.
 
-    Category 3. Follow-up after curative resection of pancreatic cancer:
-    This category applies to patients who have undergone curative resection for pancreatic cancer, where post-surgical imaging (CT or MRI) is conducted
-    to check for complications or recurrence.
-    Reports include information on abnormalities related to the surgery, local tumor recurrence, lymph node metastasis, and distant metastasis,
-    as well as evaluations of any suspicious lesions.
+  *Context*:
+  {context}
 
-    [Considerations for Classification]:
-    Patients diagnosed with pancreatic cancer recurrence for the first time through follow-up imaging after curative resection fall under this category.
-    If the patient had been previously diagnosed with recurrence on prior imaging after curative resection, they should not be classified under this category.
-    Patients who already had recurrent tumor or metastasis from a previous follow-up after curative resection and whose lesion status is being evaluated should
-    fall under Category 4 (Follow-up for tumor recurrence after curative resection).
+  *User question*: What type does the input CT report belong to, and
+  what is the reasoning?
 
-    Category 4. Follow-up for tumor recurrence after curative resection:
-    This category applies to patients who, after undergoing curative resection for pancreatic cancer, have confirmed pancreatic cancer recurrence on previous imaging
-    and are undergoing evaluation for changes in the recurrent tumor after chemotherapy, radiation, or conservative treatment.
-    Pancreatic cancer recurrence includes newly occurring local recurrence, lymph node metastasis, or distant metastasis
-    (e.g., liver, peritoneal, or lung metastasis).
-    CT and MRI reports focus on the recurrent tumor's status and any newly detected recurrences.
+  *CT report content*:
+  {content}
 
-    [Considerations for Classification]:
-    Patients who have never undergone curative resection for pancreatic cancer do not fall under this category.
-    Cases where suspicious lesions are being followed for possible recurrence after curative resection, but where recurrence is not yet confirmed,
-    or cases where pancreatic cancer is newly diagnosed fall under Category 3 (Follow-up after curative resection of pancreatic cancer).
+  Please follow these guidelines:
+  1. Ouput should match the format instruction.
+  2. Provide reasoning in Korean.
+  3. Retain technical terms from the original input text.
 
-    *Context*:
-    {context}
-
-- role: human
-  content: |
-    *User question*: What category does the input CT report belong to, and
-    what is the reasoning?
-
-    *CT report content*:
-    {content}
-
-    Please follow these guidelines:
-    1. Ouput should match the attributes of the 'PDACClassifierResult' function.
-    2. Provide reasoning in Korean.
-    3. Retain technical terms from the original input text.
-
-    *category*:
-    *resasoning*:
+  {format_instruction}

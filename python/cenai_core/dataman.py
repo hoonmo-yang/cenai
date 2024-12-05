@@ -1,5 +1,6 @@
-from typing import Any, Hashable, Sequence
+from typing import Any, Hashable, Sequence, Union
 
+import hashlib
 import json
 from operator import attrgetter, itemgetter
 from pathlib import Path
@@ -233,3 +234,44 @@ def get_empty_html() -> str:
     """
 
     return dedent(html)
+
+
+def generate_checksum(src: Union[str, bytes], algorithm: str) -> str:
+    '''
+    Gets string or binary arrays, generate a checksum from it and
+    returns it. Checksum algorithm is either sha224, sha256 or md5.
+    '''
+    if algorithm not in ["sha224", "sha256", "md5"]:
+        raise RuntimeError(
+            f"algorithm {algorithm} isn't supported"
+        )
+    h = hashlib.new(algorithm)
+
+    if not isinstance(src, (str, bytes)):
+        raise TypeError(f"type of {src} isn't str or bytes ({type(src)})")
+
+    if isinstance(src, str):
+        src = src.encode("utf-8")
+
+    h.update(src)
+    return h.hexdigest()
+
+
+def generate_checksum_file(
+    src: Path, algorithm: str, block_size: int = 1048576
+) -> str:
+    '''
+    Generate a checksum from a file and returns it. The supported
+    checksum algorithms are sha224, sha256 and md5.
+    '''
+    if algorithm not in ["sha224", "sha256", "md5"]:
+        raise RuntimeError(
+            f"algorithm {algorithm} isn't supported"
+        )
+    h = hashlib.new(algorithm)
+
+    with src.open("rb") as fin:
+        for byte_block in iter(lambda: fin.read(block_size), b''):
+            h.update(byte_block)
+    return h.hexdigest()
+

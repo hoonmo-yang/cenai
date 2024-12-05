@@ -2,69 +2,67 @@ input_variables:
 - context
 - content
 
-messages:
-- role: system
-  content: |
-    You are requested to categorize the clinical context category of CT report for
-    a pancreatic cancer patient and to explain the reason behind your decision.
-    Using the clinical context category descriptions and the searched context,
-    determine which category the input CT report belongs to.
-    Clearly justify your reasoning based on the category.
+partial_variables:
+- format_instruction
 
-    *Category Descriptions*:
-    For pancreatic cancer patients, imaging studies are categorized into the following four categories based on clinical context:
+template: |
+  You are requested to predict the clinical context type of CT report for
+  a pancreatic cancer patient and to explain the reason behind your decision.
+  Using the clinical context type descriptions and the searched context,
+  determine which type the input CT report belongs to.
+  Clearly justify your reasoning based on the type.
 
-    Category 1. Initial diagnosis & staging:
-      •	This category applies when a patient undergoes CT or MRI for the initial diagnosis of pancreatic cancer or for tumor
-        staging when pancreatic cancer is suspected.
-      •	This includes cases where CT or MRI is performed for a confirmed pancreatic cancer diagnosis and CT or MRI is performed for staging.
-      •	In cases where a definitive diagnosis of pancreatic cancer is not confirmed, alternative differential diagnoses may be provided.
-      •	CT or MRI interpretations focus on the diagnosis of pancreatic cancer, the level of diagnostic certainty, possible differential diagnoses,
-        tumor involvement of adjacent vessels and organs, lymph node metastasis, and distant metastasis (e.g., liver, peritoneal, or distant lymph nodes).
-      Note:
-      •	For patients referred from another hospital with a suspected or confirmed pancreatic cancer diagnosis,
-        CT and MRI reports belonging to this clinical context category may include the change in tumor extent as well as tumor staging information.   
-      •	This category does not include follow-up scans after surgery, chemotherapy, or radiation therapy, which fall
-        under Category 2 (Follow-up for pancreatic cancer without curative resection) or Category 3 (Follow-up after curative resection of pancreatic cancer).
+  *Type Descriptions*:
+  For pancreatic cancer patients, imaging studies belong to one of the following four types based on clinical context:
 
-    Category 2. Follow-up for pancreatic cancer without curative resection:
-      •	This category applies when CT or MRI is performed to monitor changes in unresected pancreatic cancer.
-      •	This category refers to CT and MRI examinations performed in patients with pancreatic cancer who have not undergone curative resection, instead receiving chemotherapy,
-        radiation, or conservative treatment, or being monitored without treatment.
-      •	CT or MRI report contents focus on changes in primary pancreatic tumor extent (i.e., tumor size and extent of adjacent organ or blood vessel involvement),
-        changes in existing metastasis, and new development of lymph node or distant metastasis. 
-      Note:
-      •	Patients who have undergone resection are not included in this category. Patients monitored for recurrence after resection are also excluded.
+  Type 1. Initial diagnosis & staging:
+    •	This type applies when a patient undergoes CT or MRI for the initial diagnosis of pancreatic cancer or for tumor
+      staging when pancreatic cancer is suspected.
+    •	This includes cases where CT or MRI is performed for a confirmed pancreatic cancer diagnosis and CT or MRI is performed for staging.
+    •	In cases where a definitive diagnosis of pancreatic cancer is not confirmed, alternative differential diagnoses may be provided.
+    •	CT or MRI interpretations focus on the diagnosis of pancreatic cancer, the level of diagnostic certainty, possible differential diagnoses,
+      tumor involvement of adjacent vessels and organs, lymph node metastasis, and distant metastasis (e.g., liver, peritoneal, or distant lymph nodes).
+    Note:
+    •	For patients referred from another hospital with a suspected or confirmed pancreatic cancer diagnosis,
+      CT and MRI reports belonging to this clinical context type may include the change in tumor extent as well as tumor staging information.   
+    •	This type does not include follow-up scans after surgery, chemotherapy, or radiation therapy, which fall
+      under Type 2 (Follow-up for pancreatic cancer without curative resection) or Type 3 (Follow-up after curative resection of pancreatic cancer).
 
-    Category 3. Follow-up after curative resection of pancreatic cancer:
-      •	Applies to patients who have undergone pancreatic cancer surgery, with CT or MRI performed to assess for postoperative complications and recurrence.
-      •	Imaging reports focus on the presence of absence of postoperative complications, local recurrence, lymph node metastasis, and distant metastasis.
-        Patients with uncertain findings of recurrence may also be included.
-      Note:
-      •	This category includes initial recurrence cases after curative resection of pancreatic cancer but not subsequent follow-ups of known recurrences,
-        which fall under Category 4 (Follow-up for tumor recurrence after curative resection).
+  Type 2. Follow-up for pancreatic cancer without curative resection:
+    •	This type applies when CT or MRI is performed to monitor changes in unresected pancreatic cancer.
+    •	This type refers to CT and MRI examinations performed in patients with pancreatic cancer who have not undergone curative resection, instead receiving chemotherapy,
+      radiation, or conservative treatment, or being monitored without treatment.
+    •	CT or MRI report contents focus on changes in primary pancreatic tumor extent (i.e., tumor size and extent of adjacent organ or blood vessel involvement),
+      changes in existing metastasis, and new development of lymph node or distant metastasis. 
+    Note:
+    •	Patients who have undergone resection are not included in this type. Patients monitored for recurrence after resection are also excluded.
 
-    Category 4. Follow-up for tumor recurrence after curative resection:
-      •	Applies when CT or MRI is performed to evaluate changes in a confirmed recurrence post-surgery, after treatment or observation.
-      •	Recurrent tumors include local recurrences, lymph node metastasis, and distant metastasis (e.g., liver, peritoneal, lung metastasis).
-      Note:
-      •	This category includes cases with known recurred tumors post-resection, focusing on changes in existing lesions and the development of new lesions.
+  Type 3. Follow-up after curative resection of pancreatic cancer:
+    •	Applies to patients who have undergone pancreatic cancer surgery, with CT or MRI performed to assess for postoperative complications and recurrence.
+    •	Imaging reports focus on the presence of absence of postoperative complications, local recurrence, lymph node metastasis, and distant metastasis.
+      Patients with uncertain findings of recurrence may also be included.
+    Note:
+    •	This type includes initial recurrence cases after curative resection of pancreatic cancer but not subsequent follow-ups of known recurrences,
+      which fall under Type 4 (Follow-up for tumor recurrence after curative resection).
 
-    *Context*:
-    {context}
+  Type 4. Follow-up for tumor recurrence after curative resection:
+    •	Applies when CT or MRI is performed to evaluate changes in a confirmed recurrence post-surgery, after treatment or observation.
+    •	Recurrent tumors include local recurrences, lymph node metastasis, and distant metastasis (e.g., liver, peritoneal, lung metastasis).
+    Note:
+    •	This type includes cases with known recurred tumors post-resection, focusing on changes in existing lesions and the development of new lesions.
 
-- role: human
-  content: |
-    *User question*: What category does the input CT report belong to, and
-    what is the reasoning?
+  *Context*:
+  {context}
 
-    *CT report content*:
-    {content}
+  *User question*: What type does the input CT report belong to, and
+   what is the reasoning?
 
-    Please follow these guidelines:
-    1. Ouput should match the attributes of the 'PDACClassifierResult' function.
-    2. Provide reasoning in Korean.
-    3. Retain technical terms from the original input text.
+  *CT report content*:
+  {content}
 
-    *category*:
-    *resasoning*:
+  Please follow these guidelines:
+  1. Ouput should match the format instruction.
+  2. Provide reasoning in Korean.
+  3. Retain technical terms from the original input text.
+
+  {format_instruction}

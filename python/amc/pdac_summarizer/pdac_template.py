@@ -3,7 +3,17 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 
-class PDACReportBaseModel(BaseModel):
+class PDACResultClassify(BaseModel):
+    class Config:
+        title = "PDAC classification result"
+        description = "predicted type of PDAC report by classification"
+
+    type: str = Field(
+        description="AI 분류기가 예측한 CT 판독문의 유형",
+    )
+
+
+class PDACReport(BaseModel):
     class Config:
         title = "PDAC report base class for configuration"
         description = "PDAC report base class for configuration"
@@ -11,7 +21,7 @@ class PDACReportBaseModel(BaseModel):
         use_enum_values = True
 
 
-class PDACReportTemplate(PDACReportBaseModel):
+class PDACReportTemplate(PDACReport):
     class Config:
         title = "PDAC report template"
         description = "Template for a report on pancreatic cancer diagnostic imaging"
@@ -92,7 +102,7 @@ class PDACReportTemplate4(PDACReportTemplate):
     )
 
 
-class PDACReportTemplateFail(PDACReportBaseModel):
+class PDACReportTemplateFail(PDACReport):
     class Config:
         title = "Missing template for a report on pancreatic cancer diagnostic imaging"
 
@@ -107,7 +117,7 @@ class PDACReportTemplateFail(PDACReportBaseModel):
     )
 
 
-class KeyFindingsTemplate1(PDACReportBaseModel):
+class KeyFindingsTemplate1(PDACReport):
     class Config:
         title = "Template for key findings in a type 1 report"
 
@@ -160,7 +170,7 @@ class KeyFindingsTemplate1(PDACReportBaseModel):
     )
 
 
-class KeyFindingsTemplate2(PDACReportBaseModel):
+class KeyFindingsTemplate2(PDACReport):
     class Config:
         title = "Template for key findings in a type 2 report"
 
@@ -213,7 +223,7 @@ class KeyFindingsTemplate2(PDACReportBaseModel):
     )
 
 
-class KeyFindingsTemplate3(PDACReportBaseModel):
+class KeyFindingsTemplate3(PDACReport):
     class Config:
         title = "Template for key findings in a type 3 report"
 
@@ -261,7 +271,7 @@ class KeyFindingsTemplate3(PDACReportBaseModel):
     )
 
 
-class KeyFindingsTemplate4(PDACReportBaseModel):
+class KeyFindingsTemplate4(PDACReport):
     class Config:
         title = "Template for key findings in a type 4 report"
 
@@ -292,7 +302,7 @@ class KeyFindingsTemplate4(PDACReportBaseModel):
     )
 
 
-class PrimaryTumor(PDACReportBaseModel):
+class PrimaryTumor(PDACReport):
     class Config:
         title = "Primary tumor"
 
@@ -316,7 +326,7 @@ class PrimaryTumor(PDACReportBaseModel):
     )
 
 
-class TumorInvasionVascular(PDACReportBaseModel):
+class TumorInvasionVascular(PDACReport):
     class Config:
         title = "Tumor vascular invasion"
 
@@ -334,7 +344,7 @@ class TumorInvasionVascular(PDACReportBaseModel):
     )
 
 
-class TumorInvasionVascularArtery(PDACReportBaseModel):
+class TumorInvasionVascularArtery(PDACReport):
     class Config:
         title = "Tumor vascular invasion involving an artery"
 
@@ -377,7 +387,7 @@ class TumorInvasionVascularArtery(PDACReportBaseModel):
                          a major artery evaluated for tumor involvement""",
     )
 
-class TumorInvasionVascularVein(PDACReportBaseModel):
+class TumorInvasionVascularVein(PDACReport):
     class Config:
         title = "Tumor vascular invasion involving a vein"
 
@@ -420,7 +430,7 @@ class TumorInvasionVascularVein(PDACReportBaseModel):
     )
 
 
-class TumorInvasionAdjacentOrgan(PDACReportBaseModel):
+class TumorInvasionAdjacentOrgan(PDACReport):
     class Config:
         title = "Tumor invasion into other organs"
 
@@ -438,7 +448,7 @@ class TumorInvasionAdjacentOrgan(PDACReportBaseModel):
     )
 
 
-class DistantMetastasis(PDACReportBaseModel):
+class DistantMetastasis(PDACReport):
     class Config:
         title = "distant metastasis"
 
@@ -456,7 +466,7 @@ class DistantMetastasis(PDACReportBaseModel):
     )
 
 
-class NewLesion(PDACReportBaseModel):
+class NewLesion(PDACReport):
     class Config:
         title = "new lesion"
 

@@ -12,7 +12,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from cenai_core.dataman import (
-    concat_texts, load_json_yaml, optional, Q, Struct
+    concat_texts, generate_checksum, load_json_yaml, optional, Q, Struct
 )
 
 from cenai_core.langchain_helper import LangchainHelper
@@ -48,14 +48,17 @@ class GridRunnable(Logger, ABC):
             log_file=log_file,
         )
 
-        self._case_id = "_".join([
-            token for token in [
-                corpus_part,
-                "-".join(models),
-                self.metadata.module,
-                case_suffix,
-            ] if token
-        ])
+        self._case_id = generate_checksum(
+            "_".join([
+                token for token in [
+                    corpus_part,
+                    "-".join(models),
+                    self.metadata.module,
+                    case_suffix,
+                ] if token
+            ]),
+            algorithm="md5",
+        )
 
         self._dataset_df = self._load_dataset()
         self._document_df = self._load_documents()
@@ -76,7 +79,7 @@ class GridRunnable(Logger, ABC):
             "suite_id": [self.suite_id],
             "case_id": [self.case_id],
             "suite_prefix": [self.suite_prefix],
-            "suite_create_date": [self.metadata.suite.create_date],
+            "suite_label": [self.metadata.suite.label],
             "suite_index": [self.metadata.suite.index],
             "institution": [self.metadata.institution],
             "task": [self.metadata.task],

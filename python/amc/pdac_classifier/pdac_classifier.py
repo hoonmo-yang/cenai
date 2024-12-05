@@ -17,15 +17,7 @@ from cenai_core.nlp import match_text
 from cenai_core.grid import GridRunnable
 from cenai_core.langchain_helper import ChainContext
 
-
-class PDACClassifyResult(BaseModel):
-    type: str = Field(
-        description="AI 분류기가 예측한 CT 판독문의 유형",
-    )
-
-    reason: str = Field(
-        description="AI 분류기가 CT 판독문의 유형을 예측한 근거",
-    )
+from amc.pdac_classifier import PDACResultClassify
 
 
 class PDACClassifier(GridRunnable, ABC):
@@ -58,7 +50,7 @@ class PDACClassifier(GridRunnable, ABC):
         self.metadata_df.loc[0, "sections"] = ",".join(self._sections)
 
         self.main_chain = RunnableLambda(
-            lambda _: PDACClassifyResult(
+            lambda _: PDACResultClassify(
                 type="Not available",
                 reason="PDACClassifier not implemented",
             )
@@ -164,7 +156,7 @@ class PDACClassifier(GridRunnable, ABC):
         else:
             self.ERROR(f"number of tries exceeds {num_tries}")
 
-            response = PDACClassifyResult(
+            response = PDACResultClassify(
                 type="Not available",
                 reason = f"LLM({self.model[0].model_name}) internal error",
             )

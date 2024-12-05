@@ -4,8 +4,6 @@ import logging
 import os
 from pathlib import Path
 
-from cenai_core.system import cenai_path
-
 
 class Logger:
     logger = {}

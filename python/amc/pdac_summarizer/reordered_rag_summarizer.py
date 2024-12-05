@@ -5,7 +5,7 @@ from operator import attrgetter, itemgetter
 from langchain_community.vectorstores import FAISS
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
-from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.retrievers import BaseRetriever
 
 from langchain_core.runnables import (
@@ -17,10 +17,10 @@ from langchain.retrievers import EnsembleRetriever
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from cenai_core.dataman import Struct
-from cenai_core.langchain_helper import load_chatprompt, load_prompt
+from cenai_core.langchain_helper import load_prompt
 
 from amc.pdac_summarizer import (
-    PDACSummarizer, PDACClassifyResult, PDACReportTemplateFail
+    PDACSummarizer, PDACResultClassify, PDACReportTemplateFail
 )
 
 from amc.pdac_summarizer import pdac_template
@@ -36,12 +36,12 @@ class ReorderedRagSummarizer(PDACSummarizer):
                  metadata: Struct
                  ):
 
-        case_suffix = "_".join({
+        case_suffix = "_".join([
             classify_prompt.split(".")[0],
             summarize_prompt.split(".")[0],
             question.split(".")[0],
             f"k{topk:02d}",
-        })
+        ])
 
         super().__init__(
             models=models,
@@ -104,7 +104,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
 
         vectorstore = FAISS.from_documents(
             documents=splits,
-            embedding=self.embeddings,
+            embedding=self.embeddings[0],
         )
 
         vector_retriever = vectorstore.as_retriever(
@@ -126,8 +126,19 @@ class ReorderedRagSummarizer(PDACSummarizer):
                               ) -> Runnable:
         self.INFO(f"{self.header} CLASSIFY CHAIN prepared ....")
 
-        prompt_args = load_chatprompt(self.content_dir / classify_prompt)
-        prompt = ChatPromptTemplate(**prompt_args)
+        parser = PydanticOutputParser(
+            pydantic_object=PDACResultClassify,
+        )
+
+        prompt_args, partials = load_prompt(self.content_dir / classify_prompt)
+
+        full_args = prompt_args | {
+            "partial_variables": {
+                partials[0]: parser.get_format_instructions(),
+            },
+        }
+
+        prompt = PromptTemplate(**full_args)
 
         chain = RunnableMap({
             "type": (
@@ -144,7 +155,8 @@ class ReorderedRagSummarizer(PDACSummarizer):
 
                 } |
                 prompt |
-                self.model[0].with_structured_output(PDACClassifyResult) |
+                self.model[0] |
+                parser |
                 attrgetter("type")
             ),
 

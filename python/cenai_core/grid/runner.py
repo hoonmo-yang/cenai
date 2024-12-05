@@ -1,10 +1,11 @@
 from __future__ import annotations
-from typing import Any, Sequence, Union
+from typing import Any, Callable, Iterator, Sequence, Union
 
 import copy
 from datetime import datetime
 import importlib
 from itertools import product
+import itertools
 import pandas as pd
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -18,21 +19,22 @@ from cenai_core.dataman import (
 )
 
 from cenai_core.logger import Logger
-from cenai_core.pandas_helper import to_json
+from cenai_core.pandas_helper import from_json, to_json
 from cenai_core.grid.runnable import GridRunnable
+from cenai_core.render import html_to_pdf
 from cenai_core.system import cenai_path, load_dotenv
-
 
 class Gridsuite(BaseModel):
     prefix: str = Field(description="prefix of gridsuite name")
-    create_date: str = Field(description="date when the grid suite is created")
+    label: str = Field(description="date when the grid suite is created")
     index: int = Field(description="chronological order per date")
     artifact_dir: Path = Field(description="dir of gridsuite artifact")
     profile_file: str = Field(description="config profile file of gridsuite")
 
     @property
     def id(self) -> str:
-        return f"{self.prefix}_{self.create_date}_{self.index:03d}"
+        label = f"_{self.label}" if self.label else ""
+        return f"{self.prefix}{label}_{self.index:03d}"
 
     @property
     def prefix_dir(self) -> str:
@@ -52,7 +54,7 @@ class GridRunner(BaseRunner):
     data_dir = cenai_path("data")
     artifact_dir = cenai_path("artifact")
 
-    P_GRID_CASE = re.compile(r"[a-zA-Z0-9-]+_\d{4}-\d{2}-\d{2}_(\d+)\.json")
+    P_GRID_CASE = re.compile(r"[a-zA-Z0-9-]+_(\d+)\.json")
 
     def __init__(
             self,
@@ -99,9 +101,6 @@ class GridRunner(BaseRunner):
 
         self._source_corpus_dir = source_dir / "corpus"
         self._html_dir = source_dir / "html"
-
-        self._metadata_df = pd.DataFrame()
-        self._result_df = pd.DataFrame()
 
     @classmethod
     def _load_gridsuite_recipe(
@@ -254,14 +253,18 @@ class GridRunner(BaseRunner):
         datastore_dir = self.artifact_dir / prefix / "datastore"
         datastore_dir.mkdir(parents=True, exist_ok=True)
 
-        date = self.recipe.directive.get("fixed_date")
+        label = self.recipe.directive.get("label")
 
-        if date is None:
-            date = datetime.now().strftime("%Y-%m-%d")
+        if label is None:
+            label = datetime.now().strftime("%Y-%m-%d")
+
+        pattern = "_".join([
+           item for item in [prefix, label] if item
+        ])
 
         indices = [
             self._extract_gridsuite_index(path)
-            for path in datastore_dir.glob(f"{prefix}_{date}*.json")
+            for path in datastore_dir.glob(f"{pattern}*.json")
         ]
 
         replicate = self.recipe.directive.get("replicate", True)
@@ -271,7 +274,7 @@ class GridRunner(BaseRunner):
         suite = Gridsuite(
             prefix=prefix,
             index=index,
-            create_date=date,
+            label=label,
             artifact_dir=self.artifact_dir,
             profile_file=self.recipe.profile_file,
         )
@@ -524,8 +527,12 @@ class GridRunner(BaseRunner):
         )
 
     def yield_result(self) -> pd.DataFrame:
-        self.invoke()
-        return pd.DataFrame(self.result_df)
+        if not self.data_json.is_file():
+            self.invoke()
+
+        result_df, *_ = from_json(self.data_json)
+
+        return pd.DataFrame(result_df)
 
     def invoke(self) -> None:
         self.INFO(f"{self.header} proceed ....")
@@ -546,28 +553,42 @@ class GridRunner(BaseRunner):
 
                     instance.run(**self.recipe.directive)
 
-                    self.metadata_df = pd.concat(
-                        [self.metadata_df, instance.metadata_df], axis=0
-                    )
-
-                    self.result_df = pd.concat(
-                        [self.result_df, instance.result_df], axis=0
-                    )
+                    self._save(instance.result_df, instance.metadata_df)
 
         self.INFO(f"{self.header} proceed DONE")
 
-    def save(self) -> None:
+    def _save(self,
+              result_df: pd.DataFrame,
+              metadata_df: pd.DataFrame
+              ) -> None:
         self.INFO(f"{self.header} DATA saved ....")
 
         save = optional(self.recipe.directive.get("save"), True)
 
-        if save:
-            data_json = self.datastore_dir / f"{self.suite_id}.json"
-            to_json(data_json, self.metadata_df, self.result_df)
-
-            self.INFO(f"{self.header} DATA saved DONE")
-        else:
+        if not save:
             self.INFO(f"{self.header} DATA saved SKIP")
+
+        if self.data_json.is_file():
+            old_result_df, old_metadata_df, *_ = from_json(self.data_json)
+            columns = ["suite_id", "case_id"]
+
+            old_result_df = old_result_df.set_index(columns)
+            result_df = result_df.set_index(columns)
+
+            result_df = (
+                result_df.combine_first(old_result_df).reset_index()
+            )
+
+            old_metadata_df = old_metadata_df.set_index(columns)
+            metadata_df = metadata_df.set_index(columns)
+
+            metadata_df = (
+                metadata_df.combine_first(old_metadata_df).reset_index()
+            )
+
+        to_json(self.data_json, result_df, metadata_df)
+
+        self.INFO(f"{self.header} DATA saved DONE")
 
     def export(self) -> None:
         self.INFO(f"{self.header} FILE EXPORT proceed ....")
@@ -576,6 +597,11 @@ class GridRunner(BaseRunner):
 
         if not export.pop("enable", False):
             return
+
+        if not self.data_json.is_file():
+            return
+
+        result_df, metadata_df, *_ = from_json(self.data_json)
 
         stem = optional(export.pop("stem", None), self.suite_id)
         columns = optional(export.pop("columns", None), {})
@@ -589,31 +615,38 @@ class GridRunner(BaseRunner):
         for values in product(*export.values()):
             export_args = dict(zip(export.keys(), values))
 
-            self._export_data(stem, all_columns, **export_args)
+            self._export_data(
+                result_df,
+                metadata_df,
+                stem,
+                all_columns,
+                **export_args
+            )
 
         self.INFO(f"{self.header} FILE EXPORT proceed DONE")
 
     def _export_data(
             self,
+            result_df: pd.DataFrame,
+            metadata_df: pd.DataFrame,
             stem: str,
             all_columns: dict[str, Sequence[str]],
             mode: str,
             extension: str
         ) -> None:
-
         if mode in ["all",]:
             export_df = pd.merge(
-                self.result_df,
-                self.metadata_df,
+                result_df,
+                metadata_df,
                 on=["suite_id", "case_id"],
                 how="outer",
             )
 
-        elif mode in ["metadata",]:
-            export_df = self.metadata_df
-
         elif mode in ["result",]:
-            export_df = self.result_df
+            export_df = result_df
+
+        elif mode in ["metadata",]:
+            export_df = metadata_df
 
         columns = all_columns.get(mode, [])
 
@@ -654,8 +687,58 @@ class GridRunner(BaseRunner):
 
     def __call__(self) -> None:
         self.invoke()
-        self.save()
-        self.export()
+
+    def generate_pdfs(self, keywords: list[str] = []) -> None:
+        self.INFO(f"{self.header} PDF GENERATION proceed ....")
+
+        if not self.data_json.is_file():
+            return
+
+        result_df, *_ = from_json(self.data_json)
+
+        if "html" not in result_df:
+            return
+
+        if keywords:
+            total = result_df.groupby(
+                keywords, sort=False
+            ).html.size().shape[0]
+
+            result_df.groupby(keywords, sort=False).html.apply(
+                self._generate_pdf_foreach,
+                count=itertools.count(0),
+                total=total,
+            )
+        else:
+            self._generate_pdf_foreach(
+                result_df.html,
+                count=itertools.count(1),
+                total=1,
+            )
+
+        self.INFO(f"{self.header} PDF GENERATION proceed DONE")
+
+    def _generate_pdf_foreach(
+            self,
+            htmls: pd.Series,
+            count: Callable[..., Iterator[int]],
+            total: int
+        ) -> None:
+
+        if htmls.name == "html":
+            suffix = ""
+        else:
+            parts = list(htmls.name) if isinstance(htmls.name, tuple) else [htmls.name]
+            suffix = "_".join([f"{part}" for part in parts])
+
+        stem = "-".join([part for part in [self.suite_id, suffix] if part])
+        pdf_file = self.export_dir / f"{stem}.pdf"
+        html_to_pdf(pdf_file, htmls)
+
+        self.INFO(
+            f"{self.header} PDF GENERATION"
+            f"FILE {Q(pdf_file)} [{next(count):02d}/{total:02d}] DONE"
+        )
 
     @property
     def recipe(self) -> Struct:
@@ -694,17 +777,6 @@ class GridRunner(BaseRunner):
         return self._export_dir
 
     @property
-    def metadata_df(self) -> pd.DataFrame:
-        return self._metadata_df
+    def data_json(self) -> Path:
+        return self.datastore_dir / f"{self.suite_id}.json"
 
-    @metadata_df.setter
-    def metadata_df(self, value: pd.DataFrame) -> None:
-        self._metadata_df = value
-
-    @property
-    def result_df(self) -> pd.DataFrame:
-        return self._result_df
-
-    @result_df.setter
-    def result_df(self, value: pd.DataFrame) -> None:
-        self._result_df = value

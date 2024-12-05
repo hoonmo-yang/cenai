@@ -5,16 +5,17 @@ from operator import itemgetter
 from langchain_community.vectorstores import FAISS
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import Runnable, RunnableMap
 from langchain.retrievers import EnsembleRetriever
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from cenai_core.dataman import Struct
-from cenai_core.langchain_helper import ChainContext, load_chatprompt
+from cenai_core.langchain_helper import ChainContext, load_prompt
 
-from amc.pdac_classifier import PDACClassifier, PDACClassifyResult
+from amc.pdac_classifier import PDACClassifier, PDACResultClassify
 
 
 class ReorderedRagClassifier(PDACClassifier):
@@ -60,7 +61,7 @@ class ReorderedRagClassifier(PDACClassifier):
 
         retriever = self._build_retriever()
 
-        self.main_chain = self._build_classify_chain(
+        self.main_chain = self._build_main_chain(
             classify_prompt=classify_prompt,
             retriever=retriever,
         )
@@ -87,7 +88,7 @@ class ReorderedRagClassifier(PDACClassifier):
 
         vectorstore = FAISS.from_documents(
             documents=splits,
-            embedding=self.embeddings,
+            embedding=self.embeddings[0],
         )
 
         vector_retriever = vectorstore.as_retriever(
@@ -103,14 +104,25 @@ class ReorderedRagClassifier(PDACClassifier):
         self.INFO(f"{self.header} RAG prepared DONE")
         return retriever
 
-    def _build_classify_chain(self,
-                              classify_prompt: str,
-                              retriever: BaseRetriever
-                              ) -> Runnable:
-        self.INFO(f"{self.header} CHAIN prepared ....")
+    def _build_main_chain(self,
+                          classify_prompt: str,
+                          retriever: BaseRetriever
+                          ) -> Runnable:
+        self.INFO(f"{self.header} MAIN CHAIN prepared ....")
 
-        prompt_args = load_chatprompt(self.content_dir / classify_prompt)
-        prompt = ChatPromptTemplate(**prompt_args)
+        parser = PydanticOutputParser(
+            pydantic_object=PDACResultClassify,
+        )
+
+        prompt_args, partials = load_prompt(self.content_dir / classify_prompt)
+
+        full_args = prompt_args | {
+            "partial_variables": {
+                partials[0]: parser.get_format_instructions(),
+            },
+        }
+
+        prompt = PromptTemplate(**full_args)
 
         chain = (
             RunnableMap({
@@ -124,10 +136,11 @@ class ReorderedRagClassifier(PDACClassifier):
                 ),
             }) |
             prompt |
-            self.model[0].with_structured_output(PDACClassifyResult)
+            self.model[0] |
+            parser
         ) 
 
-        self.INFO(f"{self.header} CHAIN prepared DONE")
+        self.INFO(f"{self.header} MAIN CHAIN prepared DONE")
         return chain
 
     def classify_pre(self) -> ChainContext:

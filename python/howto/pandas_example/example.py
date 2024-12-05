@@ -1,17 +1,17 @@
-all_keywords = [
-    ["1", "2", "3",],
-    ["4", "5", "6",],
-]
+import pandas as pd
+
+df = pd.DataFrame(
+    {
+        "a": [1, 1, 1, 2, 2, 2,],
+        "b": [1, 2, 1, 2, 2, 1,],
+        "c": [1, 2, 3, 4, 5, 6,],
+    }
+)
+
+def f(group) -> str:
+    return group + 2
 
 
+k = df.groupby("a").c.apply(f)
 
-keyword_texts = [
-    "\n".join([
-        f"<td>{keyword}</td>"
-        for keyword in keywords
-    ])
-    for keywords in all_keywords
-]
-
-print(keyword_texts[0])
-print(keyword_texts[1])
+print(k.to_frame().reset_index())

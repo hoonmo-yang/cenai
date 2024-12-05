@@ -135,7 +135,10 @@ class GridCLI(Logger):
                 f"for {Q(self._title)} proceed ...."
             )
 
-            self._runner(path)()
+            runner = self._runner(path)
+            
+            runner.invoke()
+            runner.generate_pdfs()
 
             self.INFO(
                 f"{self._name.upper()} {Q(path.name)} "

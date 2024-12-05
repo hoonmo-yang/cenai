@@ -3,7 +3,6 @@ from typing import Any, Callable, Iterator, Optional, Sequence
 
 import itertools
 import pandas as pd
-from pydantic import BaseModel, Field
 
 from langchain_community.document_transformers import LongContextReorder
 from langchain_core.documents import Document
@@ -14,12 +13,6 @@ from cenai_core.dataman import load_text, optional, Q, Struct
 from cenai_core.grid import GridRunnable
 from cenai_core.nlp import match_text
 from amc.pdac_summarizer.pdac_template import PDACReportTemplateFail
-
-
-class PDACClassifyResult(BaseModel):
-    type: str = Field(
-        description="AI 분류기가 예측한 CT 판독문의 유형",
-    )
 
 
 class PDACSummarizer(GridRunnable):
@@ -144,6 +137,7 @@ class PDACSummarizer(GridRunnable):
             gt_type=gt_type,
             pv_type=pv_type,
             is_hit=is_hit,
+            content=content,
         )
 
         entry = pd.Series({
@@ -175,7 +169,8 @@ class PDACSummarizer(GridRunnable):
                        summary: dict[str, Any],
                        gt_type: str,
                        pv_type: str,
-                       is_hit: bool
+                       is_hit: bool,
+                       content: str
                        ) -> str:
 
         index = self.get_type_label_index(pv_type) + 1
@@ -192,6 +187,7 @@ class PDACSummarizer(GridRunnable):
             "gt_type": gt_type,
             "pv_type": pv_type,
             "hit": "HIT" if is_hit else "MISS",
+            "content": content
         } | summary_args
 
         html = html_text.format(**html_args)

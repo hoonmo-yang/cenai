@@ -47,7 +47,7 @@ class PDACRecapper(BaseRunner):
                 "suite_id",
                 "case_id",
                 "suite_prefix",
-                "suite_create_date",
+                "suite_label",
                 "suite_index",
                 "institution",
                 "task",

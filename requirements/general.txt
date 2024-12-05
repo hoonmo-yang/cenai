@@ -21,10 +21,12 @@ lark
 matplotlib
 numpy
 ollama
+olefile
 openpyxl
 pandas
 pymupdf
 pypdf
+pdftodocx
 python-pptx
 rank_bm25
 rapidfuzz
@@ -34,3 +36,4 @@ streamlit
 transformers
 unstructured
 uvicorn
+weasyprint
