@@ -45,17 +45,35 @@
             <table>
             <tr>
                 <td>File</td>
-                <td>{file}</td>
+                <td colspan="2">{file}</td>
             </tr>
-
             <tr>
-                <td>유사도 점수 (Score: 0~10)</td>
-                <td>{similarity}</td>
+                <td colspan="3">유사도 평가 (Score: 0~10)</td>
             </tr>
-
             <tr>
+                <td>항목</td>
+                <td>점수</td>
                 <td>차이점</td>
-                <td>{difference}</td>
+            </tr>
+            <tr>
+                <td>{abstract_title}</td>
+                <td>{abstract_score}</td>
+                <td>{abstract_difference}</td>
+            </tr>
+            <tr>
+                <td>{outcome_title}</td>
+                <td>{outcome_score}</td>
+                <td>{outcome_difference}</td>
+            </tr>
+            <tr>
+                <td>{expectation_title}</td>
+                <td>{expectation_score}</td>
+                <td>{expectation_difference}</td>
+            </tr>
+            <tr>
+                <td>{keyword_title}</td>
+                <td>{keyword_score}</td>
+                <td>{keyword_difference}</td>
             </tr>
             </table>
         </div>
@@ -64,28 +82,32 @@
         <div class="section2">
             <table>
             <tr>
-                <td colspan="2">{abstract_title}</td>
-                <td colspan="{num_keywords}">{abstract_content_gt}</td>
-                <td colspan="{num_keywords}">{abstract_content_pv}</td>
+                <td></td>
+                <td>직접 작성</td>
+                <td>AI 작성</td>
             </tr>
             <tr>
-                <td colspan="2">{outcome_title}</td>
-                <td colspan="{num_keywords}">{outcome_content_gt}</td>
-                <td colspan="{num_keywords}">{outcome_content_pv}</td>
+                <td>{abstract_title}</td>
+                <td>{abstract_content_gt}</td>
+                <td>{abstract_content_pv}</td>
             </tr>
             <tr>
-                <td colspan="2">{expectation_title}</td>
-                <td colspan="{num_keywords}">{expectation_content_gt}</td>
-                <td colspan="{num_keywords}">{expectation_content_pv}</td>
+                <td>{outcome_title}</td>
+                <td>{outcome_content_gt}</td>
+                <td>{outcome_content_pv}</td>
             </tr>
             <tr>
-                <td rowspan="2">{keyword_title}</td>
-                <td>국문</td>
+                <td>{expectation_title}</td>
+                <td>{expectation_content_gt}</td>
+                <td>{expectation_content_pv}</td>
+            </tr>
+            <tr>
+                <td>{keyword_title} (국문)</td>
                 {keyword_kr_gt}
                 {keyword_kr_pv}
             </tr>
             <tr>
-                <td>영문</td>
+                <td>{keyword_title} (영문)</td>
                 {keyword_en_gt}
                 {keyword_en_pv}
             </tr>

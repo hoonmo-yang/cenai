@@ -27,6 +27,14 @@ export:
   extension:
   - .xlsx
 
+publish:
+  enable: true
+  keywords:
+  - institution
+  - name
+  extension:
+  - .pdf
+
 models:
   # - [gpt-4o, gpt-4o]
 

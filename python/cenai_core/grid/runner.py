@@ -4,6 +4,7 @@ from typing import Any, Callable, Iterator, Sequence, Union
 import copy
 from datetime import datetime
 import importlib
+import html2docx
 from itertools import product
 import itertools
 import pandas as pd
@@ -199,6 +200,7 @@ class GridRunner(BaseRunner):
         } | {
             key: profile[key] for key in [
                 "export",
+                "publish",
             ]
         } | {
             "profile_file": str(profile_file),
@@ -222,6 +224,7 @@ class GridRunner(BaseRunner):
             ["tags", "metadata", list],
             ["directive", "", dict],
             ["export", "", dict],
+            ["publish", "", dict],
             ["models", "", list],
             ["cases", "", list],
             ["corpora", "", list],
@@ -296,11 +299,23 @@ class GridRunner(BaseRunner):
         corpora = self.recipe.corpora
 
         for i, corpus in enumerate(corpora):
-            if corpus["mode"][0] in ["aggregate",]:
-                some_corpus_args = self._prepare_aggregate(
-                    order=i + 1,
-                    corpus=corpus,
-                )
+            mode = corpus["mode"][0]
+
+            if mode in ["aggregate", "none",]:
+
+                if mode in ["aggregate",]:
+                    some_corpus_args = self._prepare_aggregate(
+                        order=i + 1,
+                        corpus=corpus,
+                    )
+
+                else:
+                    some_corpus_args = [{
+                        "corpus_mode": "none",
+                        "corpus_prefix": "",
+                        "corpus_stem": [],
+                        "corpus_ext": [],
+                    }]
 
                 all_corpus_args.extend(some_corpus_args)
                 continue
@@ -567,24 +582,27 @@ class GridRunner(BaseRunner):
 
         if not save:
             self.INFO(f"{self.header} DATA saved SKIP")
+            return
 
         if self.data_json.is_file():
             old_result_df, old_metadata_df, *_ = from_json(self.data_json)
             columns = ["suite_id", "case_id"]
 
-            old_result_df = old_result_df.set_index(columns)
-            result_df = result_df.set_index(columns)
+            if not old_result_df.empty:
+                old_result_df = old_result_df.set_index(columns)
+                result_df = result_df.set_index(columns)
 
-            result_df = (
-                result_df.combine_first(old_result_df).reset_index()
-            )
+                result_df = (
+                    result_df.combine_first(old_result_df).reset_index()
+                )
 
-            old_metadata_df = old_metadata_df.set_index(columns)
-            metadata_df = metadata_df.set_index(columns)
+            if not old_metadata_df.empty:
+                old_metadata_df = old_metadata_df.set_index(columns)
+                metadata_df = metadata_df.set_index(columns)
 
-            metadata_df = (
-                metadata_df.combine_first(old_metadata_df).reset_index()
-            )
+                metadata_df = (
+                    metadata_df.combine_first(old_metadata_df).reset_index()
+                )
 
         to_json(self.data_json, result_df, metadata_df)
 
@@ -688,16 +706,30 @@ class GridRunner(BaseRunner):
     def __call__(self) -> None:
         self.invoke()
 
-    def generate_pdfs(self, keywords: list[str] = []) -> None:
-        self.INFO(f"{self.header} PDF GENERATION proceed ....")
+    def publish(self,
+                result_df: pd.DataFrame = pd.DataFrame(),
+                keywords: list[str] = [],
+                extensions: str = ".pdf"
+                ) -> None:
 
-        if not self.data_json.is_file():
-            return
+        self.INFO(f"{self.header} PUBLISH proceed ....")
 
-        result_df, *_ = from_json(self.data_json)
+        if result_df.empty:
+            if not self.data_json.is_file():
+                return
+
+            result_df, *_ = from_json(self.data_json)
 
         if "html" not in result_df:
             return
+
+        publish_args = dict(self.recipe.publish)
+
+        if not publish_args.pop("enable", False):
+            return
+
+        keywords = publish_args["keywords"]
+        extensions = publish_args["extension"]
 
         if keywords:
             total = result_df.groupby(
@@ -705,8 +737,9 @@ class GridRunner(BaseRunner):
             ).html.size().shape[0]
 
             result_df.groupby(keywords, sort=False).html.apply(
-                self._generate_pdf_foreach,
-                count=itertools.count(0),
+                self._publish_foreach,
+                extensions=extensions,
+                count=itertools.count(1),
                 total=total,
             )
         else:
@@ -718,9 +751,10 @@ class GridRunner(BaseRunner):
 
         self.INFO(f"{self.header} PDF GENERATION proceed DONE")
 
-    def _generate_pdf_foreach(
+    def _publish_foreach(
             self,
             htmls: pd.Series,
+            extensions: list[str],
             count: Callable[..., Iterator[int]],
             total: int
         ) -> None:
@@ -732,12 +766,27 @@ class GridRunner(BaseRunner):
             suffix = "_".join([f"{part}" for part in parts])
 
         stem = "-".join([part for part in [self.suite_id, suffix] if part])
-        pdf_file = self.export_dir / f"{stem}.pdf"
-        html_to_pdf(pdf_file, htmls)
+
+        if ".pdf" in extensions:
+            pdf_file = self.export_dir / f"{stem}.pdf"
+
+            self.INFO(f"*{Q(pdf_file)} PUBLISHED ....")
+
+            html_to_pdf(pdf_file, htmls)
+
+            self.INFO(f"*{Q(pdf_file)} PUBLISHED DONE")
+
+        if ".docx" in extensions:
+            docx_file = self.export_dir / f"{stem}.docx"
+
+            self.INFO(f"*{Q(docx_file)} PUBLISHED ....")
+
+            html2docx(docx_file, htmls)
+
+            self.INFO(f"*{Q(docx_file)} PUBLISHED DONE")
 
         self.INFO(
-            f"{self.header} PDF GENERATION"
-            f"FILE {Q(pdf_file)} [{next(count):02d}/{total:02d}] DONE"
+            f"{self.header} PUBLISHED [{next(count):02d}/{total:02d}] DONE"
         )
 
     @property

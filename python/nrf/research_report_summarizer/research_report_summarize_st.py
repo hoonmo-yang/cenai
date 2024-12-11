@@ -58,6 +58,10 @@ class ResearchResportSummarizationStreamlit(Logger):
 
             self._run_button = st.button("Run", use_container_width=True)
 
+            if st.button("Clear Cache", use_container_width=True):
+                st.cache_data.clear()
+                st.success("Cache has been cleared")
+
         self._profile["models"] = [[model, "gpt-4o"]]
         self._profile["corpora"][0]["prefix"] = [prefix]
         self._profile["corpora"][0]["extension"] = [extension]
@@ -71,7 +75,7 @@ class ResearchResportSummarizationStreamlit(Logger):
     def get_result(profile: dict[str, Any]) -> pd.DataFrame:
         runner = GridRunner(profile)
         result_df = runner.yield_result()
-
+        runner.publish(result_df)
         return result_df
 
     def invoke(self):

@@ -1,0 +1,54 @@
+metadata:
+  version: v2
+  name: amc-poc-otf
+  institution: amc
+  task: pj-summarizer
+  tags:
+  - otf
+  - pj-summarizer
+  - amc-poc
+
+directive:
+  langsmith: true
+  replicate: false
+  label: ""
+  save: false
+  num_selects: 2
+  num_tries: 5
+  recovery_time: 5
+
+export:
+  enable: true
+  stem:
+  columns:
+    all:
+    metadata:
+    result:
+  mode:
+  - all
+  extension:
+  - xlsx
+
+publish:
+  enable: false
+  keywords: []
+  extension:
+  - .pdf
+
+models:
+#- [gpt-4o]
+- [gpt-3.5-turbo]
+
+corpora:
+- mode:
+  - none
+
+cases:
+- module:
+  - vanila_summarizer
+  content_kr:
+  - question
+
+content_kr:
+  question:
+  - uq-kr.yaml

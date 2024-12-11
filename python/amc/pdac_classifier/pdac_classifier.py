@@ -12,7 +12,7 @@ from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
 
 from cenai_core import Timer
-from cenai_core.dataman import (load_text, optional, Q, Struct)
+from cenai_core.dataman import load_text, optional, Q, Struct
 from cenai_core.nlp import match_text
 from cenai_core.grid import GridRunnable
 from cenai_core.langchain_helper import ChainContext

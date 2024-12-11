@@ -16,6 +16,7 @@ directive:
   num_selects: 2
   num_tries: 5
   recovery_time: 5
+  pdf_keywords: []
 
 export:
   enable: false

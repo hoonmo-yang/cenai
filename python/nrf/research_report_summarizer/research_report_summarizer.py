@@ -25,8 +25,8 @@ from cenai_core.langchain_helper import (
 )
 
 from nrf.research_report_summarizer.research_report_template import (
-    ResearchReportItemFail, ResearchReportItemIdentity,
-    ResearchReportItemSimilarity, ResearchReportSummaryTemplate
+    ResearchReportItemFail, ResearchReportIdentity,
+    ResearchReportSummaryTemplate, ResearchReportSimilarity
 )
 
 
@@ -125,7 +125,7 @@ class ResearchReportSummarizer(GridRunnable):
         self.INFO(f"{self.header} EXTRACT-HEADER CHAIN prepared ....")
 
         parser = PydanticOutputParser(
-            pydantic_object=ResearchReportItemIdentity,
+            pydantic_object=ResearchReportIdentity,
         )
 
         prompt_args, partials = load_prompt(
@@ -177,7 +177,7 @@ class ResearchReportSummarizer(GridRunnable):
         self.INFO(f"{self.header} SIMILARITY CHAIN prepared ....")
 
         parser = PydanticOutputParser(
-            pydantic_object=ResearchReportItemSimilarity,
+            pydantic_object=ResearchReportSimilarity,
         )
 
         prompt_args, partials = load_prompt(
@@ -770,7 +770,7 @@ class ResearchReportSummarizer(GridRunnable):
         else:
             self.ERROR(f"number of tries exceeds {num_tries}")
 
-            response = ResearchReportItemIdentity(
+            response = ResearchReportIdentity(
                 title_kr = "",
                 title_en = "",
                 institution = "",
@@ -807,7 +807,16 @@ class ResearchReportSummarizer(GridRunnable):
                               ) -> pd.DataFrame:
         self.INFO(f"{self.header} REPORT SIMILARITY proceed ....")
 
-        columns = ["similarity", "difference"]
+        columns = [
+            "abstract_score",
+            "abstract_difference",
+            "outcome_score",
+            "outcome_difference",
+            "expectation_score",
+            "expectation_difference",
+            "keyword_score",
+            "keyword_difference",
+        ]
 
         report_df[columns] = report_df.apply(
             self._calculate_similarity_foreach,
@@ -857,16 +866,28 @@ class ResearchReportSummarizer(GridRunnable):
         else:
             self.ERROR(f"number of tries exceeds {num_tries}")
 
-            response = ResearchReportItemSimilarity(
-                score=0.0,
-                difference="LLM internal error",
+            response = ResearchReportSimilarity(
+                abstract_score=0,
+                abstract_difference="",
+                outcome_score=0,
+                outcome_difference="",
+                expectation_score=0,
+                expectation_difference="",
+                keyword_score=0,
+                keyword_difference="",
             )
 
         timer = Timer()
 
         entry = pd.Series({
-            "similarity": response.score,
-            "difference": response.difference,
+            "abstract_score": response.abstract_score,
+            "abstract_difference": response.abstract_difference,
+            "outcome_score": response.outcome_score,
+            "outcome_difference": response.outcome_difference,
+            "expectation_score": response.expectation_score,
+            "expectation_difference": response.expectation_difference,
+            "keyword_score": response.keyword_score,
+            "keyword_difference": response.keyword_difference,
         })
 
         self.INFO(
@@ -915,8 +936,14 @@ class ResearchReportSummarizer(GridRunnable):
                 "position",
                 "department",
                 "major",
-                "similarity",
-                "difference",
+                "abstract_score",
+                "abstract_difference",
+                "outcome_score",
+                "outcome_difference",
+                "expectation_score",
+                "expectation_difference",
+                "keyword_score",
+                "keyword_difference",
             ]
         }
 

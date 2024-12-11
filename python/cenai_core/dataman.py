@@ -65,6 +65,20 @@ def concat_texts(
     return seperator.join([selector(chunk) for chunk in chunks])
 
 
+def concat_ranges(*args) -> list[int]:
+    out = []
+    for arg in args:
+        if isinstance(arg, int):
+            out.append(arg)
+        elif isinstance(arg, range):
+            out.extend(list(arg))
+        else:
+            raise TypeError(
+                f"{Q(arg)} isn't int or range"
+            )
+    return out
+
+
 def Q(text: str) -> str:
     return f"'{text}'"
 

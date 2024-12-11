@@ -24,9 +24,9 @@ ollama
 olefile
 openpyxl
 pandas
+psycopg2-binary
 pymupdf
 pypdf
-pdftodocx
 python-pptx
 rank_bm25
 rapidfuzz

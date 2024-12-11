@@ -1,5 +1,3 @@
-from typing import Any
-
 import argparse
 import os
 from pathlib import Path
@@ -138,7 +136,8 @@ class GridCLI(Logger):
             runner = self._runner(path)
             
             runner.invoke()
-            runner.generate_pdfs()
+            runner.export()
+            runner.publish()
 
             self.INFO(
                 f"{self._name.upper()} {Q(path.name)} "

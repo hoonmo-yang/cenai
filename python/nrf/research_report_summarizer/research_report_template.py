@@ -68,22 +68,6 @@ class ResearchReportItemKeyword(ResearchReportItem):
     )
 
 
-class ResearchReportItemSimilarity(ResearchReportItem):
-    class Config:
-        title = "개발연구과제 보고서 요약 유사도 점수"
-        description = "개발연구과제 보고서 요약 유사도 점수"
-
-    score: float = Field(
-        ...,
-        description="요약 유사도 점수" 
-    )
-
-    difference: str = Field(
-        ...,
-        description="요약이 다른 부분에 대한 설명"
-    ),
-
-
 class ResearchReportItemFail(ResearchReportItem):
     class Config:
         title = "결과 추출 실패"
@@ -97,7 +81,7 @@ class ResearchReportItemFail(ResearchReportItem):
     error: bool = True
 
 
-class ResearchReportItemIdentity(ResearchReportItem):
+class ResearchReportIdentity(BaseModel):
     class Config:
         title = "연구개발과제 정보"
         description = "연구개발과제 정보"
@@ -135,4 +119,50 @@ class ResearchReportItemIdentity(ResearchReportItem):
     major: str = Field(
         ...,
         description="저자 전공 분야"
+    )
+
+
+class ResearchReportSimilarity(BaseModel):
+    class Config:
+        title = "개발연구과제 보고서 요약 항목별 유사도 점수"
+        description = "개발연구과제 보고서 요약 항목별 유사도 점수"
+
+    abstract_score: float = Field(
+        ...,
+        description="abstract 항목 유사도 점수 (10점 만점)",
+    )
+
+    abstract_difference: str = Field(
+        ...,
+        description="abstract 항목의 내용이 다른 부분에 대한 설명",
+    )
+
+    outcome_score: float = Field(
+        ...,
+        description="outcome 항목 유사도 점수 (10점 만점)",
+    )
+
+    outcome_difference: str = Field(
+        ...,
+        description="outcome 항목의 내용이 다른 부분에 대한 설명",
+    )
+
+    expectation_score: float = Field(
+        ...,
+        description="expectation 항목 유사도 점수 (10점 만점)",
+    )
+
+    expectation_difference: str = Field(
+        ...,
+        description="expectation 항목의 내용이 다른 부분에 대한 설명",
+    )
+
+    keyword_score: float = Field(
+        ...,
+        description="keyword 항목 유사도 점수 (10점 만점)",
+    )
+
+    keyword_difference: str = Field(
+        ...,
+        description="keyword 항목의 내용이 다른 부분에 대한 설명",
     )
