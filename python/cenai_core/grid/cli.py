@@ -121,9 +121,6 @@ class GridCLI(Logger):
 
         return [path]
 
-    def __call__(self) -> None:
-        self.invoke()
-
     def invoke(self) -> None:
         paths = self._choose_paths()
 
@@ -136,8 +133,8 @@ class GridCLI(Logger):
             runner = self._runner(path)
             
             runner.invoke()
-            runner.export()
-            runner.publish()
+            runner.export_tables()
+            runner.export_documents()
 
             self.INFO(
                 f"{self._name.upper()} {Q(path.name)} "

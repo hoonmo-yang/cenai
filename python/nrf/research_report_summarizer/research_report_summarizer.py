@@ -15,7 +15,7 @@ from langchain_core.runnables import Runnable
 from cenai_core import Timer
 
 from cenai_core.dataman import (
-    load_json_yaml, optional, pad_list, Q, Struct
+    load_json_yaml, optional, pad_list, Q, QQ, Struct
 )
 
 from cenai_core.grid import GridRunnable
@@ -113,11 +113,8 @@ class ResearchReportSummarizer(GridRunnable):
             similarity_prompt=similarity_prompt,
         )
 
-        css_file = self.html_dir / "styles.css"
-        self._css_text = f"<style>\n{css_file.read_text()}\n</style>"
-
-        html_file = self.html_dir / "html_template.html"
-        self._html_text = html_file.read_text()
+        self._css_file = self.html_dir / "styles.css"
+        self._html_file = self.html_dir / "html_template.html"
 
     def _build_extract_header_chain(self,
                                     extract_header_prompt: str,
@@ -219,7 +216,7 @@ class ResearchReportSummarizer(GridRunnable):
         self.INFO(f"{self.header} REPORT SUMMARY proceed ....")
 
         num_tries = optional(num_tries, 5)
-        recovery_time = optional(recovery_time, 2)
+        recovery_time = optional(recovery_time, 0.5)
 
         report_df = self._split_reports_by_section()
 
@@ -263,7 +260,7 @@ class ResearchReportSummarizer(GridRunnable):
             num_tries=num_tries,
             recovery_time=recovery_time,
         ).pipe(
-            self._generate_htmls,
+            self._prepare_htmls,
         )
 
         self.INFO(f"{self.header} REPORT SUMMARY proceed DONE")
@@ -568,14 +565,15 @@ class ResearchReportSummarizer(GridRunnable):
                     config=self.chain_config,
                 )
 
-            except KeyboardInterrupt as error:
-                raise error
+            except KeyboardInterrupt:
+                raise
 
             except BaseException:
                 self.ERROR(f"LLM({self.model[0].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
+                recovery_time *= 2
             else:
                 break
         else:
@@ -654,14 +652,15 @@ class ResearchReportSummarizer(GridRunnable):
                     },
                 )
 
-            except KeyboardInterrupt as error:
-                raise error
+            except KeyboardInterrupt:
+                raise
 
             except BaseException:
                 self.ERROR(f"LLM({self.model[1].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
+                recovery_time *= 2
             else:
                 break
         else:
@@ -757,14 +756,15 @@ class ResearchReportSummarizer(GridRunnable):
                     },
                 )
 
-            except KeyboardInterrupt as error:
-                raise error
+            except KeyboardInterrupt:
+                raise
 
             except BaseException:
                 self.ERROR(f"LLM({self.model[1].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
+                recovery_time *= 2
             else:
                 break
         else:
@@ -839,6 +839,7 @@ class ResearchReportSummarizer(GridRunnable):
                                       recovery_time: int
                                       ) -> pd.Series:
         file_ = report.file
+
         summary_pv = json.dumps(report.summary_pv, ensure_ascii=False)
         summary_gt = json.dumps(report.summary_gt, ensure_ascii=False)
         
@@ -853,14 +854,15 @@ class ResearchReportSummarizer(GridRunnable):
                     },
                 )
 
-            except KeyboardInterrupt as error:
-                raise error
+            except KeyboardInterrupt:
+                raise
 
             except BaseException:
                 self.ERROR(f"LLM({self.model[1].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
+                recovery_time *= 2
             else:
                 break
         else:
@@ -898,35 +900,42 @@ class ResearchReportSummarizer(GridRunnable):
 
         return entry
 
-    def _generate_htmls(self,
-                       report_df: pd.DataFrame,
-                       ) -> pd.DataFrame:
-        self.INFO(f"{self.header} REPORT HTML GENERATION proceed ....")
+    def _prepare_htmls(self, report_df: pd.DataFrame) -> pd.DataFrame:
 
-        columns = ["file", "html"]
+        self.INFO(f"{self.header} REPORT HTML PREPARATION proceed ....")
+
+        columns = [
+            "file",
+            "css_file",
+            "html_file",
+            "html_args",
+        ]
 
         report_df[columns] = report_df.apply(
-            self._generate_html_foreach,
+            self._prepare_html_foreach,
             count=itertools.count(1),
             total=report_df.shape[0],
             axis=1
         )
 
-        self.INFO(f"{self.header} REPORT HTML GENERATION proceed DONE")
+        columns = [
+            "suite_id",
+            "case_id",
+        ]
+        report_df[columns] = [self.suite_id, self.case_id]
 
+        self.INFO(f"{self.header} REPORT HTML PREPARATION proceed DONE")
         return report_df
 
-    def _generate_html_foreach(self,
-                               report: pd.Series,
-                               count: Callable[..., Iterator[int]],
-                               total: int,
-                               ) -> pd.Series:
+    def _prepare_html_foreach(self,
+                              report: pd.Series,
+                              count: Callable[..., Iterator[int]],
+                              total: int,
+                              ) -> pd.Series:
         file_ = report.file
 
         html_args = {
-            "css_content": self._css_text,
             "file": str(file_.relative_to(self.corpus_dir)),
-            "num_keywords": self._num_keywords,
         } | {
             key: report[key] for key in [
                 "title_kr",
@@ -972,11 +981,11 @@ class ResearchReportSummarizer(GridRunnable):
 
                 html_args |= args
 
-        html = self._html_text.format(**html_args)
-
         entry = pd.Series({
             "file": str(file_),
-            "html": html,
+            "css_file": str(self._css_file),
+            "html_file": str(self._html_file),
+            "html_args": html_args,
         })
 
         self.INFO(
@@ -995,10 +1004,7 @@ class ResearchReportSummarizer(GridRunnable):
         ]
 
         return [
-            "\n".join([
-                f"<td>{keyword}</td>"
-                for keyword in keywords
-            ])
+            f"<td style={QQ('text-align: justify;')}>{', '.join(keywords)}</td>"
             for keywords in all_keywords
         ]
 

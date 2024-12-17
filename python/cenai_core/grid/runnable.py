@@ -80,7 +80,6 @@ class GridRunnable(Logger, ABC):
             "case_id": [self.case_id],
             "suite_prefix": [self.suite_prefix],
             "suite_label": [self.metadata.suite.label],
-            "suite_index": [self.metadata.suite.index],
             "institution": [self.metadata.institution],
             "task": [self.metadata.task],
             "tags": [",".join(self.metadata.tags)],

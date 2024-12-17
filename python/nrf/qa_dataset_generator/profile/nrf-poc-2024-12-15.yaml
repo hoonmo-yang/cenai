@@ -1,37 +1,39 @@
 metadata:
-  version: v2
-  name: nrf-poc-2024-11-26
+  version: v1
+  name: nrf-poc-qa-dataset-generator
+  label: "2024-12-15"
   institution: nrf
   task: qa-dataset-generator
   tags:
-  - qa-dataset-generator
   - nrf-poc
-  - "2024-11-26"
+  - qa-dataset-generator
+  - "2024-12-15"
 
 directive:
   langsmith: false
-  replicate: false
-  fixed_date: "2024-11-26"
-  save: true
-  num_tries: 5
-  recovery_time: 5
+  force: false
+  truncate: false
+  num_tries: 8
+  recovery_time: 0.5
 
 export:
-  enable: true
-  stem:
-  columns:
-    all:
-    metadata:
-    result:
-  mode:
-  - result
-  extension:
-  - .csv
-  - .json
-  - .xlsx
+  table:
+    enable: true
+    stem:
+    columns:
+    - 문제
+    - 정답
+    - file
+    extension:
+    - .csv
 
-model:
-- hcx-003
+  document:
+    enable: false
+    keywords:
+    extension:
+
+models:
+- [hcx-003]
 
 corpora:
 - mode:
@@ -60,9 +62,9 @@ parameter:
   chunk_overlap:
   - 50
   max_tokens:
-  - 1000
+  - 600
   num_datasets:
-  - 10
+  - 100
 
 content_kr:
   generate_prompt:

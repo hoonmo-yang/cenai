@@ -1,41 +1,36 @@
 from __future__ import annotations
-from typing import Any, Callable, Iterator, Sequence, Union
+from typing import Any, Callable, Iterator, Optional, Sequence, Union
 
 import copy
-from datetime import datetime
 import importlib
-import html2docx
 from itertools import product
 import itertools
 import pandas as pd
 from pathlib import Path
 from pydantic import BaseModel, Field
-import re
 import shutil
 from sklearn.model_selection import train_test_split
-import sys
 
 from cenai_core.dataman import (
-    load_json_yaml, optional, ordinal, Q, Struct, to_camel
+    load_json_yaml, get_empty_html, optional, ordinal, Q, Struct, to_camel
 )
 
 from cenai_core.logger import Logger
 from cenai_core.pandas_helper import from_json, to_json
 from cenai_core.grid.runnable import GridRunnable
-from cenai_core.render import html_to_pdf
+from cenai_core.render import html_to_pdf, html_to_docx
 from cenai_core.system import cenai_path, load_dotenv
 
 class Gridsuite(BaseModel):
     prefix: str = Field(description="prefix of gridsuite name")
-    label: str = Field(description="date when the grid suite is created")
-    index: int = Field(description="chronological order per date")
+    label: str = Field(description="label of grid suite")
     artifact_dir: Path = Field(description="dir of gridsuite artifact")
     profile_file: str = Field(description="config profile file of gridsuite")
 
     @property
     def id(self) -> str:
         label = f"_{self.label}" if self.label else ""
-        return f"{self.prefix}{label}_{self.index:03d}"
+        return f"{self.prefix}{label}"
 
     @property
     def prefix_dir(self) -> str:
@@ -50,42 +45,21 @@ class BaseRunner(Logger):
 
 
 class GridRunner(BaseRunner):
-    version = "v2"
+    version = "v1"
 
     data_dir = cenai_path("data")
     artifact_dir = cenai_path("artifact")
 
-    P_GRID_CASE = re.compile(r"[a-zA-Z0-9-]+_(\d+)\.json")
-
-    def __init__(
-            self,
-            profile: Union[Path, dict[str, Any]],
-            module_paths: Sequence[Union[Path, str]] = []
-        ):
-
+    def __init__(self, profile: Optional[Union[Path, dict[str, Any]]] = None):
         super().__init__()
 
-        self._add_module_paths(module_paths)
+        if profile is not None:
+            self.update(profile)
 
-        self.renew(profile)
-
-    @staticmethod
-    def _add_module_paths(
-            module_paths: Sequence[Union[Path, str]]
-        ) -> None:
-
-        for module_path in module_paths:
-            module_path = Path(module_path).resolve()
-
-            if module_path == Path.cwd().resolve():
-                continue
-
-            if str(module_path) not in sys.path:
-                sys.path.insert(0, str(module_path))
-
-    def renew(self, profile: Union[Path, dict[str, Any]]) -> None:
+    def update(self, profile: Union[Path, dict[str, Any]]) -> None:
         self._recipe = self._load_gridsuite_recipe(profile)
-        self._suite = self._replicate_gridsuite()
+        self._suite = self._update_gridsuite()
+
         self._datastore_dir = self.suite.prefix_dir / "datastore"
 
         self._corpus_dir = self.suite.prefix_dir / "corpus"
@@ -198,9 +172,9 @@ class GridRunner(BaseRunner):
                 "directive",
             ]
         } | {
-            key: profile[key] for key in [
-                "export",
-                "publish",
+            f"export_{key}": profile["export"][key] for key in [
+                "table",
+                "document",
             ]
         } | {
             "profile_file": str(profile_file),
@@ -219,15 +193,15 @@ class GridRunner(BaseRunner):
             ["metadata", "", dict],
             ["version", "metadata", str],
             ["name", "metadata", str],
+            ["label", "metadata", str],
             ["institution", "metadata", str],
             ["task", "metadata", str],
             ["tags", "metadata", list],
             ["directive", "", dict],
             ["export", "", dict],
-            ["publish", "", dict],
             ["models", "", list],
-            ["cases", "", list],
             ["corpora", "", list],
+            ["cases", "", list],
         ]
 
         profile[""] = profile
@@ -251,47 +225,20 @@ class GridRunner(BaseRunner):
             raise ValueError("Profile version not matched: "
                              f"{Q(version)} in {location} != {Q(cls.version)}")
 
-    def _replicate_gridsuite(self) -> Gridsuite:
+    def _update_gridsuite(self) -> Gridsuite:
         prefix = self.recipe.metadata.name
         datastore_dir = self.artifact_dir / prefix / "datastore"
         datastore_dir.mkdir(parents=True, exist_ok=True)
-
-        label = self.recipe.directive.get("label")
-
-        if label is None:
-            label = datetime.now().strftime("%Y-%m-%d")
-
-        pattern = "_".join([
-           item for item in [prefix, label] if item
-        ])
-
-        indices = [
-            self._extract_gridsuite_index(path)
-            for path in datastore_dir.glob(f"{pattern}*.json")
-        ]
-
-        replicate = self.recipe.directive.get("replicate", True)
-
-        index = max(indices) + int(replicate) if indices else 1
+        label = self.recipe.metadata.label
 
         suite = Gridsuite(
             prefix=prefix,
-            index=index,
             label=label,
             artifact_dir=self.artifact_dir,
             profile_file=self.recipe.profile_file,
         )
 
         return suite
-
-    @classmethod
-    def _extract_gridsuite_index(cls, path: Path) -> int:
-
-        if not path.is_file():
-            return -1
-
-        match = cls.P_GRID_CASE.fullmatch(path.name)
-        return int(match[1]) if match else -1
 
     def _prepare_corpora(self) -> list[dict[str, str]]:
         all_corpus_args = []
@@ -353,6 +300,13 @@ class GridRunner(BaseRunner):
 
         source_dir = self.source_corpus_dir / prefix
 
+        target_dir = self.corpus_dir / prefix
+
+        if target_dir.is_dir():
+            shutil.rmtree(target_dir)
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+
         for values in product(*corpus.values()):
             corpus_args = dict(zip(corpus.keys(), values))
 
@@ -360,8 +314,7 @@ class GridRunner(BaseRunner):
             extension = corpus_args["extension"]
 
             for file_ in source_dir.glob(f"{stem}{extension}"):
-                target = self.corpus_dir / prefix / file_.name
-                target.parent.mkdir(parents=True, exist_ok=True)
+                target = target_dir / file_.name
                 shutil.copyfile(file_, target)
 
                 self.INFO(f"File {Q(file_)} copied to {Q(target.parent)} DONE")
@@ -395,6 +348,14 @@ class GridRunner(BaseRunner):
         keywords = keywords if isinstance(keywords, list) else [keywords]
 
         all_corpus_args = []
+
+        for tag in ["train", "test"]:
+            target_dir = corpus_dir / tag
+
+            if target_dir.is_dir():
+                shutil.rmtree(target_dir)
+
+            target_dir.mkdir(parents=True, exist_ok=True)
 
         for file_ in source_corpus_dir.glob(f"{stem}{extension}"):
             records = load_json_yaml(file_)
@@ -435,8 +396,7 @@ class GridRunner(BaseRunner):
 
                     dataframe["sample"] = dataframe["sample"].astype(int)
 
-                    target_dir = corpus_dir / Path(corpus_stem).parent / tag
-                    target_dir.mkdir(parents=True, exist_ok=True)
+                    target_dir = corpus_dir / tag
                     target_file = target_dir / f"{Path(corpus_stem).name}{extension}"
                     dataframe.to_json(target_file)
 
@@ -485,14 +445,18 @@ class GridRunner(BaseRunner):
         ) -> list[dict[str, Any]]:
 
         source_corpus_dir = self.source_corpus_dir / prefix 
-        corpus_dir = self.corpus_dir / prefix
 
         all_corpus_args = []
 
-        for file_ in source_corpus_dir.glob(f"{stem}{extension}"):
-            target = corpus_dir / file_.name
-            target.parent.mkdir(parents=True, exist_ok=True)
+        target_dir = self.corpus_dir / prefix
 
+        if target_dir.is_dir():
+            shutil.rmtree(target_dir)
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        for file_ in source_corpus_dir.glob(f"{stem}{extension}"):
+            target = target_dir / file_.name
             shutil.copyfile(file_, target)
 
             self.INFO(f"File {Q(file_)} copied to {Q(target.parent)} DONE")
@@ -542,47 +506,68 @@ class GridRunner(BaseRunner):
         )
 
     def yield_result(self) -> pd.DataFrame:
-        if not self.data_json.is_file():
-            self.invoke()
-
-        result_df, *_ = from_json(self.data_json)
-
-        return pd.DataFrame(result_df)
+        self.invoke()
+        return pd.DataFrame(self.generate_htmls())
 
     def invoke(self) -> None:
+        if not self.recipe.directive["force"] and self.data_json.is_file():
+            return
+
         self.INFO(f"{self.header} proceed ....")
 
         all_corpus_args = self._prepare_corpora()
 
         load_dotenv(self.recipe.directive.get("langsmith"))
 
-        for case in self.recipe.cases:
-            for values in product(*case.values()):
-                case_args = dict(zip(case.keys(), values))
+        try:
+            self._truncate()
 
-                for corpus_args in all_corpus_args:
-                    instance = self.get_instance(
-                        case_args=dict(case_args),
-                        corpus_args=corpus_args,
-                    )
+            for case in self.recipe.cases:
+                for values in product(*case.values()):
+                    case_args = dict(zip(case.keys(), values))
 
-                    instance.run(**self.recipe.directive)
+                    for corpus_args in all_corpus_args:
+                        instance = self.get_instance(
+                            case_args=dict(case_args),
+                            corpus_args=corpus_args,
+                        )
 
-                    self._save(instance.result_df, instance.metadata_df)
+                        instance.run(**self.recipe.directive)
+
+                        self._save(instance.result_df, instance.metadata_df)
+
+        except Exception:
+            self._restore(True)
+            raise
+        else:
+            self._restore(False)
 
         self.INFO(f"{self.header} proceed DONE")
+
+    def _truncate(self) -> None:
+        backup_file = self.data_json.with_suffix(".bak")
+
+        if self.data_json.is_file():
+            shutil.copy2(self.data_json, backup_file)
+
+            if self.recipe.directive.get("truncate", False):
+                self.data_json.unlink()
+
+    def _restore(self, error: bool) -> None:
+        backup_file = self.data_json.with_suffix(".bak")
+
+        if backup_file.is_file():
+            if error:
+                self.data_json.unlink()
+                shutil.copy2(backup_file, self.data_json)
+
+            backup_file.unlink()
 
     def _save(self,
               result_df: pd.DataFrame,
               metadata_df: pd.DataFrame
               ) -> None:
         self.INFO(f"{self.header} DATA saved ....")
-
-        save = optional(self.recipe.directive.get("save"), True)
-
-        if not save:
-            self.INFO(f"{self.header} DATA saved SKIP")
-            return
 
         if self.data_json.is_file():
             old_result_df, old_metadata_df, *_ = from_json(self.data_json)
@@ -608,128 +593,149 @@ class GridRunner(BaseRunner):
 
         self.INFO(f"{self.header} DATA saved DONE")
 
-    def export(self) -> None:
-        self.INFO(f"{self.header} FILE EXPORT proceed ....")
+    def export_tables(self) -> tuple[Path, list[str]]:
+        self.INFO(f"{self.header} TABLE EXPORT proceed ....")
 
-        export = dict(self.recipe.export)
+        export = self.recipe.export_table
 
-        if not export.pop("enable", False):
-            return
-
-        if not self.data_json.is_file():
-            return
+        if not export.pop("enable", False) or not self.data_json.is_file():
+            self.INFO(f"{self.header} TABLE EXPORT proceed DONE")
+            return self.export_dir
 
         result_df, metadata_df, *_ = from_json(self.data_json)
 
         stem = optional(export.pop("stem", None), self.suite_id)
-        columns = optional(export.pop("columns", None), {})
+        columns = optional(export.pop("columns", None), [])
+        extensions = optional(export.pop("extension", None), [])
 
-        all_columns = {
-            key: columns[key]
-            for key in ["all", "metadata", "result"]
-            if columns.get(key) is not None
-        }
-
-        for values in product(*export.values()):
-            export_args = dict(zip(export.keys(), values))
-
-            self._export_data(
-                result_df,
-                metadata_df,
-                stem,
-                all_columns,
-                **export_args
-            )
-
-        self.INFO(f"{self.header} FILE EXPORT proceed DONE")
-
-    def _export_data(
-            self,
-            result_df: pd.DataFrame,
-            metadata_df: pd.DataFrame,
-            stem: str,
-            all_columns: dict[str, Sequence[str]],
-            mode: str,
-            extension: str
-        ) -> None:
-        if mode in ["all",]:
-            export_df = pd.merge(
-                result_df,
-                metadata_df,
-                on=["suite_id", "case_id"],
-                how="outer",
-            )
-
-        elif mode in ["result",]:
-            export_df = result_df
-
-        elif mode in ["metadata",]:
-            export_df = metadata_df
-
-        columns = all_columns.get(mode, [])
+        export_df = pd.merge(
+            result_df,
+            metadata_df,
+            on=["suite_id", "case_id"],
+            how="outer",
+        )
 
         columns = [
-            column in export_df.columns
-            for column in columns
+            column for column in columns
+            if column in export_df.columns
+        ] if columns else (
+            export_df.columns
+        )
+
+        dup_columns = [
+            column for column in columns
+            if column not in [
+                "summary_pv",
+                "summary_gt",
+                "corpus_stem",
+                "corpus_ext",
+                "html_args",
+            ]
         ]
 
-        if columns:
-            export_df = export_df[columns]
+        export_df = export_df[columns].drop_duplicates(dup_columns)
 
-        target = self.export_dir / f"{stem}-{mode}{extension}"
+        if ".csv" in extensions:
+            target = self.export_dir / f"{stem}.csv"
 
-        if extension in [".csv",]:
             export_df.to_csv(
                 target,
                 index=False,
                 encoding="utf-8",
             )
+            self.INFO(f"File {Q(target)} saved Done")
 
-        elif extension in [".json",]:
+        if ".json" in extensions:
+            target = self.export_dir / f"{stem}.json"
+
             export_df.to_json(
                 target,
                 orient="records",
                 force_ascii=False,
             )
+            self.INFO(f"File {Q(target)} saved Done")
 
-        elif extension in [".xlsx",]:
+        if ".xlsx" in extensions:
+            target = self.export_dir / f"{stem}.xlsx"
+
             with pd.ExcelWriter(target) as writer:
-                export_df.to_excel(
-                    writer, sheet_name=mode
-                )
+                export_df.to_excel(writer)
+
+            self.INFO(f"File {Q(target)} saved Done")
+
+        self.INFO(f"{self.header} TABLE EXPORT proceed DONE")
+        return self.export_dir, extensions
+
+    def generate_htmls(self) -> pd.DataFrame:
+        self.INFO(f"{self.header} HTML GENERATE proceed ....")
+
+        if self.data_json.is_file():
+            result_df, *_ = from_json(self.data_json)
         else:
-            raise ValueError("export not supported for "
-                             f"file type {Q(extension)}")
+            result_df = pd.DataFrame()
 
-        self.INFO(f"File {Q(target)} saved Done")
+        if not result_df.empty:
+            result_df["html"] = result_df.apply(
+                self._generate_html_foreach,
+                count=itertools.count(1),
+                total=result_df.shape[0],
+                axis=1
+            )
+        else:
+            result_df["html"] = get_empty_html()
 
-    def __call__(self) -> None:
-        self.invoke()
+        self.INFO(f"{self.header} HTML GENERATE proceed DONE")
+        return result_df
 
-    def publish(self,
-                result_df: pd.DataFrame = pd.DataFrame(),
-                keywords: list[str] = [],
-                extensions: str = ".pdf"
-                ) -> None:
+    def _generate_html_foreach(
+            self,
+            result: pd.Series,
+            count: Callable[..., Iterator[int]],
+            total: int
+        ) -> pd.Series:
+        if pd.isna(result.html_file):
+            html = None
 
-        self.INFO(f"{self.header} PUBLISH proceed ....")
+            self.INFO(
+                f"{self.header} HTML [{next(count):02d}/{total:02d}] SKIP"
+            )
+
+        else:
+            html_file = Path(result.html_file)
+            html_text = html_file.read_text()
+
+            css_file = Path(result.css_file)
+            css_content = f"<style>\n{css_file.read_text()}</style>"
+
+            html_args = result.html_args | {
+                "css_content": css_content,
+            }
+
+            html = html_text.format(**html_args)
+
+            self.INFO(
+                f"{self.header} HTML [{next(count):02d}/{total:02d}] DONE"
+            )
+
+        return pd.Series({"html": html})
+
+    def export_documents(self) -> tuple[Path, list[str]]:
+        self.INFO(f"{self.header} DOCUMENT EXPORT proceed ....")
+
+        export = self.recipe.export_document
+
+        if not export.pop("enable", False) or not self.data_json.is_file():
+            self.INFO(f"{self.header} DOCUMENT EXPORT proceed DONE")
+            return
+
+        keywords = export.pop("keywords", [])
+        extensions = export.pop("extension", [])
+
+        result_df = self.generate_htmls()
 
         if result_df.empty:
-            if not self.data_json.is_file():
-                return
-
-            result_df, *_ = from_json(self.data_json)
-
-        if "html" not in result_df:
-            return
-
-        publish_args = dict(self.recipe.publish)
-
-        if not publish_args.pop("enable", False):
-            return
-
-        keywords = publish_args["keywords"]
-        extensions = publish_args["extension"]
+            self.INFO(f"{self.header} DOCUMENT EXPORT proceed SKIP")
+            return self.export_dir
 
         if keywords:
             total = result_df.groupby(
@@ -737,21 +743,24 @@ class GridRunner(BaseRunner):
             ).html.size().shape[0]
 
             result_df.groupby(keywords, sort=False).html.apply(
-                self._publish_foreach,
+                self._export_document_foreach,
                 extensions=extensions,
                 count=itertools.count(1),
                 total=total,
             )
         else:
-            self._generate_pdf_foreach(
+            result_df = result_df[result_df.html.notna()]
+
+            self._export_document_foreach(
                 result_df.html,
                 count=itertools.count(1),
                 total=1,
             )
 
-        self.INFO(f"{self.header} PDF GENERATION proceed DONE")
+        self.INFO(f"{self.header} DOCUMENT EXPORT proceed DONE")
+        return self.export_dir, extensions
 
-    def _publish_foreach(
+    def _export_document_foreach(
             self,
             htmls: pd.Series,
             extensions: list[str],
@@ -763,30 +772,29 @@ class GridRunner(BaseRunner):
             suffix = ""
         else:
             parts = list(htmls.name) if isinstance(htmls.name, tuple) else [htmls.name]
-            suffix = "_".join([f"{part}" for part in parts])
+            suffix = "-".join([f"{part}" for part in parts])
 
-        stem = "-".join([part for part in [self.suite_id, suffix] if part])
+        stem = "_".join([part for part in [self.suite_id, suffix] if part])
 
         if ".pdf" in extensions:
             pdf_file = self.export_dir / f"{stem}.pdf"
+            self.INFO(f"*{Q(pdf_file)} DOCUMENT EXPORT ....")
 
-            self.INFO(f"*{Q(pdf_file)} PUBLISHED ....")
+            html_to_pdf(htmls, pdf_file)
 
-            html_to_pdf(pdf_file, htmls)
-
-            self.INFO(f"*{Q(pdf_file)} PUBLISHED DONE")
+            self.INFO(f"*{Q(pdf_file)} DOCUMENT EXPORT DONE")
 
         if ".docx" in extensions:
             docx_file = self.export_dir / f"{stem}.docx"
+            self.INFO(f"*{Q(docx_file)} DOCUMENT EXPORT ....")
 
-            self.INFO(f"*{Q(docx_file)} PUBLISHED ....")
+            html_to_docx(htmls, docx_file)
 
-            html2docx(docx_file, htmls)
-
-            self.INFO(f"*{Q(docx_file)} PUBLISHED DONE")
+            self.INFO(f"*{Q(docx_file)} DOCUMENT EXPORT DONE")
 
         self.INFO(
-            f"{self.header} PUBLISHED [{next(count):02d}/{total:02d}] DONE"
+            f"{self.header} DOCUMENT EXPORT "
+            f"[{next(count):02d}/{total:02d}] DONE"
         )
 
     @property

@@ -165,8 +165,8 @@ class PJSummarizer(GridRunnable):
 
                 response = self.main_chain.invoke(question)
 
-            except KeyboardInterrupt as error:
-                raise error
+            except KeyboardInterrupt:
+                raise
 
             except BaseException:
                 self.ERROR(f"LLM({self.model[0].model_name}) internal error")

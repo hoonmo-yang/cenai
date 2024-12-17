@@ -20,7 +20,7 @@ class ResearchReportSummarization(Logger):
         )
 
     def __call__(self) -> None:
-        self._cli()
+        self._cli.invoke()
 
 
 if __name__ == "__main__":

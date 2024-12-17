@@ -143,8 +143,8 @@ class PDACClassifier(GridRunnable, ABC):
                     config=self.chain_config,
                 )
 
-            except KeyboardInterrupt as error:
-                raise error
+            except KeyboardInterrupt:
+                raise
 
             except BaseException:
                 self.ERROR(f"LLM({self.model[0].model_name}) internal error")

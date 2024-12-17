@@ -2,12 +2,14 @@ from typing import Any, Hashable, Sequence, Union
 
 import hashlib
 import json
+from io import BytesIO
 from operator import attrgetter, itemgetter
 from pathlib import Path
 import random
 import re
 import textwrap
 import yaml
+import zipfile
 
 
 def load_json_yaml(src: Path, **kwargs) -> dict[Hashable, Any]:
@@ -289,3 +291,13 @@ def generate_checksum_file(
             h.update(byte_block)
     return h.hexdigest()
 
+
+def generate_zip_buffer(files: list[Path]) -> BytesIO:
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for file_ in files:
+            zip_file.write(file_, file_.name)
+
+    zip_buffer.seek(0)
+    return zip_buffer

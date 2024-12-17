@@ -1,42 +1,48 @@
 metadata:
-  version: v2
-  name: nrf-poc-otf
+  version: v1
+  name: nrf-poc-research-report-summarizer
+  label: "2024-12-15"
   institution: nrf
   task: research-report-summarizer
   tags:
-  - research-report-summarizer
   - nrf-poc
-  - "2024-12-02"
+  - research-report-summarizer
+  - "2024-12-15"
 
 directive:
   langsmith: false
-  replicate: false
-  label: ""
-  save: true
-  num_tries: 5
-  recovery_time: 5
+  force: false
+  truncate: false
+  num_tries: 8
+  recovery_time: 0.5
 
 export:
-  enable: false
-  stem:
-  columns:
-    all:
-    metadata:
-    result:
-  mode:
-  - result
-  extension:
-  - .xlsx
+  table:
+    enable: true
+    stem:
+    columns:
+    extension:
+    - .csv
+    - .json
+    - .xlsx
+
+  document:
+    enable: true
+    keywords:
+    - institution
+    - name
+    extension:
+    - .pdf
+    - .docx
 
 models:
-  #- [hcx-003, gpt-4o]
-  - [gpt-4o, gpt-4o]
+- [gpt-4o, gpt-4o]
 
 corpora:
 - mode:
   - aggregate
   prefix:
-  - "sample"
+  - sample
   stem:
   - "*"
   extension:

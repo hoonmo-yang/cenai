@@ -13,8 +13,8 @@ from cenai_core.dataman import (
     divide_evenly, proportionalize, Q, Struct
 )
 
-from cenai_core.langchain_helper import get_document_length, load_documents
 from cenai_core.grid import GridRunnable
+from cenai_core.langchain_helper import get_document_length, load_documents
 
 
 class QADatasetGenerator(GridRunnable):
@@ -139,6 +139,10 @@ class QADatasetGenerator(GridRunnable):
             axis=1
         ).dropna(how="all").explode(columns).reset_index(drop=True)
 
+        self.result_df[["suite_id", "case_id"]] = [
+            self.suite_id, self.case_id
+        ]
+
         self.INFO(f"{self.header} QA-DATASET GENERATE proceed DONE")
 
     def _split_document_foreach(self,
@@ -198,14 +202,15 @@ class QADatasetGenerator(GridRunnable):
                     },
                     config=self.chain_config,
                 )
-            except KeyboardInterrupt as error:
-                raise error
+            except KeyboardInterrupt:
+                raise
 
             except BaseException:
                 self.ERROR(f"LLM({self.model[0].model_name}) internal error")
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
+                recovery_time *= 2
             else:
                 break
         else:

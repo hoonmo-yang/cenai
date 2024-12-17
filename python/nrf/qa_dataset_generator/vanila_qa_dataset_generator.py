@@ -21,13 +21,17 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
                  metadata: Struct
                  ):
 
+        case_suffix = "_".join([
+            generate_prompt.split(".")[0],
+        ])
+
         super().__init__(
             models=models,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             num_datasets=num_datasets,
             max_tokens=max_tokens,
-            case_suffix=generate_prompt.split(".")[0],
+            case_suffix=case_suffix,
             metadata=metadata,
         )
 
@@ -44,7 +48,7 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
     def _build_generate_chain(self,
                               generate_prompt: str
                               ) -> Runnable:
-        self.INFO(f"{self.header} CHAIN prepared ....")
+        self.INFO(f"{self.header} MAIN CHAIN prepared ....")
 
         prompt_args = load_chatprompt(self.content_dir / generate_prompt)
         prompt = ChatPromptTemplate(**prompt_args)
@@ -54,5 +58,7 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
             self.model[0] |
             StrOutputParser()
         )
+
+        self.INFO(f"{self.header} MAIN CHAIN prepared DONE")
 
         return chain

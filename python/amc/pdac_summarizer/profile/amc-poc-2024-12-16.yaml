@@ -1,34 +1,36 @@
 metadata:
-  version: v2
-  name: amc-poc-otf
+  version: v1
+  name: amc-poc-pdac-summarizer
+  label: "2024-12-16"
   institution: amc
   task: pdac-summarizer
   tags:
-  - otf
-  - pdac-summarizer
   - amc-poc
+  - pdac-summarizer
+  - "2024-12-16"
 
 directive:
   langsmith: true
-  replicate: false
-  label: ""
-  save: true
+  force: false
+  truncate: false
   num_selects: 2
   num_tries: 5
-  recovery_time: 5
-  pdf_keywords: []
+  recovery_time: 0.5
 
 export:
-  enable: false
-  stem:
-  columns:
-    all:
-  mode:
-  - all
-  extension:
-  - csv
-  - json
-  - xlsx
+  table:
+    enable: false
+    stem:
+    columns:
+    extension:
+    - .xlsx
+
+  document:
+    enable: true
+    keywords:
+    extension:
+    - .pdf
+    - .docx
 
 models:
 - [gpt-4o]
