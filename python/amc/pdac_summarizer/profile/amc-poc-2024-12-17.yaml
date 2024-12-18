@@ -1,13 +1,13 @@
 metadata:
   version: v1
   name: amc-poc-pdac-summarizer
-  label: "2024-12-16"
+  label: "2024-12-17"
   institution: amc
   task: pdac-summarizer
   tags:
   - amc-poc
   - pdac-summarizer
-  - "2024-12-16"
+  - "2024-12-17"
 
 directive:
   langsmith: true
