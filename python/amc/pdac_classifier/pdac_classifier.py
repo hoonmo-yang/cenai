@@ -1,10 +1,8 @@
-from __future__ import annotations
 from typing import Any, Callable, Iterator, Optional, Sequence
 
 from abc import ABC, abstractmethod
 import itertools
 import pandas as pd
-from pydantic import BaseModel, Field
 
 from langchain_community.document_transformers import LongContextReorder
 from langchain_core.callbacks import BaseCallbackHandler
@@ -17,7 +15,7 @@ from cenai_core.nlp import match_text
 from cenai_core.grid import GridRunnable
 from cenai_core.langchain_helper import ChainContext
 
-from amc.pdac_classifier import PDACResultClassify
+from pdac_template import PDACResultClassify
 
 
 class PDACClassifier(GridRunnable, ABC):
@@ -33,7 +31,7 @@ class PDACClassifier(GridRunnable, ABC):
         self._sections = self._get_sections(sections)
 
         corpus_part = "_".join([
-            self.metadata.corpus_stem,
+            metadata.corpus_stem,
             "".join([
                 "b" if section == "본문" else "c"
                 for section in self._sections
@@ -80,7 +78,7 @@ class PDACClassifier(GridRunnable, ABC):
         sample_df = self.select_samples(
             source_df=self.dataset_df["test"],
             num_selects=num_selects,
-            keywords=["유형", "sample"],
+            keywords=["유형", "sample_id"],
         )
 
         num_tries = optional(num_tries, 5)
@@ -128,7 +126,7 @@ class PDACClassifier(GridRunnable, ABC):
             {"content": content},
         )
 
-        sample = field["sample"]
+        sample_id = int(field.sample_id)
 
         for i in range(num_tries):
             try:
@@ -164,7 +162,7 @@ class PDACClassifier(GridRunnable, ABC):
         timer.lap()
 
         entry = pd.Series({
-            "sample": sample,
+            "sample_id": sample_id,
         } | {
             section: field[section]
             for section in self.sections
@@ -180,7 +178,7 @@ class PDACClassifier(GridRunnable, ABC):
         })
 
         self.INFO(
-            f"SAMPLE [{sample:02d}]: TIME(sec):{entry['소요시간']:.2f}   "
+            f"SAMPLE [{sample_id:03d}]: TIME(sec):{entry['소요시간']:.2f}   "
             f"{'HIT' if entry['정답'] == entry['예측'] else 'MISS'}  "
             f"(GT:{Q(entry['정답'])} PV:{Q(entry['예측'])})"
         )

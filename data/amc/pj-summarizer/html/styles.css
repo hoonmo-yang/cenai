@@ -1,4 +1,4 @@
-body {
+ody {
     font-family: 'Noto Sans KR', sans-serif;
     margin: 5px;
 }
@@ -6,9 +6,24 @@ h1, h2 {
     font-size: 18px;
     color: #333;
 }
-.section {
+.section1 {
     font-size: 100%;
     margin-bottom: 5px;
+    width: 100%;
+}
+.section2 {
+    font-size: 100%;
+    margin-bottom: 5px;
+    width: 100%;
+}
+
+.key-value {
+    display: flex;
+    justify-content: space-between;
+    margin-left: 5px;
+}
+.key-value span {
+    flex: 1;
 }
 
 table {
@@ -17,7 +32,7 @@ width: 100%;
 margin: 10px 0;
 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 table-layout: auto;
-max-width: 100%
+max-width: 100%;
 }
 
 th, td {

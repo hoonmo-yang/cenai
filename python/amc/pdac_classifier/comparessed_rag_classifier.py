@@ -17,7 +17,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from cenai_core.dataman import Struct
 from cenai_core.langchain_helper import ChainContext, load_prompt
 
-from amc.pdac_classifier import PDACClassifier, PDACResultClassify
+from pdac_classifier import PDACClassifier
+from pdac_template import PDACResultClassify
 
 
 class CompressedRagClassifier(PDACClassifier):

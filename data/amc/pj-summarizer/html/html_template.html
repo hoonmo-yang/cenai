@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="kr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title> 환자여정 요약문 </title>
+
+        {css_content}
+
+        <link rel="font-kr" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    </head>
+    <body>
+        <h2>환자 개요</h2>
+        <div class="section1">
+            <table>
+                <tr>
+                    <td style="width: 20%;">연구환자 ID</td>
+                    <td>{resch_pat_id}</td>
+                </tr>
+                <tr>
+                    <td>생년월</td>
+                    <td>{birth_ym}</td>
+                </tr>
+                <tr>
+                    <td>성별</td>
+                    <td>{sex_cd}</td>
+                </tr>
+                <tr>
+                    <td>최초내원일자</td>
+                    <td>{frst_vist_dt}</td>
+                </tr>
+                <tr>
+                    <td>진단일자</td>
+                    <td>{dx_dt}</td>
+                </tr>
+                <tr>
+                    <td>원발장기코드</td>
+                    <td>{prmr_orgn_cd}</td>
+                </tr>
+                <tr>
+                    <td>형태학적진단코드</td>
+                    <td>{mrph_diag_cd}</td>
+                </tr>
+                <tr>
+                    <td>암등록일</td>
+                    <td>{cancer_reg_dt}</td>
+                </tr>
+            </table>
+        </div>
+
+        <h2>환자 진료 여정 요약문</h2>
+        <div class="section2">
+            <table>
+            <tr>
+                <th style="width: 20%;">유형</th>
+                <th>요약</th>
+            </tr>
+            <tr>
+                <td>전체</td>
+                <td>{total}</td>
+            </tr>
+            <tr>
+                <td>1. Initial diagnosis & staging</td>
+                <td>{type1}</td>
+            </tr>
+            <tr>
+                <td>2. Follow-up for pancreatic cancer without curative resection</td>
+                <td>{type2}</td>
+            </tr>
+            <tr>
+                <td>3. Follow-up after curative resection of pancreatic cancer</td>
+                <td>{type3}</td>
+            </tr>
+            <tr>
+                <td>4. Follow-up for tumor recurrence after curative resection</td>
+                <td>{type4}</td>
+            </tr>
+        </div>
+    </body>
+</html>

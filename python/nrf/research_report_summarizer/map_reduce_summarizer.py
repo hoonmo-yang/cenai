@@ -16,9 +16,10 @@ from langgraph.graph.state import CompiledStateGraph
 from cenai_core.dataman import Struct
 from cenai_core.langchain_helper import load_prompt
 
-from nrf.research_report_summarizer import (
-    ResearchReportSummarizer, ResearchReportItemSummary,
-    ResearchReportItemKeyword, ResearchReportItemFail
+from research_report_summarizer import ResearchReportSummarizer
+
+from research_report_template import (
+    ResearchReportItemSummary, ResearchReportItemKeyword, ResearchReportItemFail
 )
 
 

@@ -7,9 +7,10 @@ from langchain_core.runnables import Runnable, RunnableBranch, RunnableLambda
 from cenai_core.dataman import Struct
 from cenai_core.langchain_helper import load_prompt
 
-from nrf.research_report_summarizer import (
-    ResearchReportSummarizer, ResearchReportItemFail,
-    ResearchReportItemSummary, ResearchReportItemKeyword
+from research_report_summarizer import ResearchReportSummarizer
+
+from research_report_template import (
+    ResearchReportItemFail, ResearchReportItemSummary, ResearchReportItemKeyword
 )
 
 

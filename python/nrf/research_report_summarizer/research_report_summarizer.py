@@ -1,5 +1,4 @@
-from __future__ import annotations
-from typing import Callable, Iterator, Optional, Union
+from typing import Callable, Iterator, Optional
 
 import itertools
 import json
@@ -24,7 +23,7 @@ from cenai_core.langchain_helper import (
     LineTextSplitter, load_documents, load_prompt
 )
 
-from nrf.research_report_summarizer.research_report_template import (
+from research_report_template import (
     ResearchReportItemFail, ResearchReportIdentity,
     ResearchReportSummaryTemplate, ResearchReportSimilarity
 )
@@ -112,9 +111,6 @@ class ResearchReportSummarizer(GridRunnable):
         self._similarity_chain = self._build_similarity_chain(
             similarity_prompt=similarity_prompt,
         )
-
-        self._css_file = self.html_dir / "styles.css"
-        self._html_file = self.html_dir / "html_template.html"
 
     def _build_extract_header_chain(self,
                                     extract_header_prompt: str,
@@ -546,7 +542,7 @@ class ResearchReportSummarizer(GridRunnable):
             total: int,
             num_tries: int,
             recovery_time: int
-        ) -> Union[str, list[list[str]]]:
+        ) -> str | list[list[str]]:
 
         item, title = content.name
 
@@ -981,10 +977,13 @@ class ResearchReportSummarizer(GridRunnable):
 
                 html_args |= args
 
+        css_file = self.html_dir / "styles.css"
+        html_file = self.html_dir / "html_template.html"
+
         entry = pd.Series({
             "file": str(file_),
-            "css_file": str(self._css_file),
-            "html_file": str(self._html_file),
+            "css_file": str(css_file),
+            "html_file": str(html_file),
             "html_args": html_args,
         })
 

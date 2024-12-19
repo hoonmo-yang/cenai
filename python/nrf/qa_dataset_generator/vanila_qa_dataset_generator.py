@@ -7,7 +7,7 @@ from langchain_core.runnables import Runnable
 from cenai_core.dataman import Struct
 from cenai_core.langchain_helper import load_chatprompt
 
-from nrf.qa_dataset_generator import QADatasetGenerator
+from qa_dataset_generator import QADatasetGenerator
 
 
 class VanilaQADatasetGenerator(QADatasetGenerator):

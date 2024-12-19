@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing import Any, Callable, Iterator, Optional, Sequence
 
 import itertools
@@ -12,7 +11,8 @@ from cenai_core import Timer
 from cenai_core.dataman import load_text, optional, Q, Struct
 from cenai_core.grid import GridRunnable
 from cenai_core.nlp import match_text
-from amc.pdac_summarizer.pdac_template import PDACReportTemplateFail
+
+from pdac_template import PDACReportTemplateFail
 
 
 class PDACSummarizer(GridRunnable):
@@ -51,11 +51,8 @@ class PDACSummarizer(GridRunnable):
         sample_df = self.select_samples(
             source_df=self.dataset_df["test"],
             num_selects=num_selects,
-            keywords=["유형", "sample"],
+            keywords=["유형", "sample_id"],
         )
-
-        css_file = self.html_dir / "styles.css"
-        css_text = f"<style>\n{css_file.read_text()}\n</style>"
 
         num_tries = optional(num_tries, 5)
         recovery_time = optional(recovery_time, 2)
@@ -63,22 +60,20 @@ class PDACSummarizer(GridRunnable):
         self.result_df = sample_df.apply(
             self._summarize_foreach,
             labels=self.get_type_labels(),
-            css_text=css_text,
             count=itertools.count(1),
             total=sample_df.shape[0],
             num_tries=num_tries,
             recovery_time=recovery_time,
             axis=1
+        ).pipe(
+            self._prepare_htmls
         )
-
-        self._summarize_post()
 
         self.INFO(f"{self.header} SUMMARIZE proceed DONE")
 
     def _summarize_foreach(self,
                           field: pd.Series,
                           labels: list[str],
-                          css_text: str,
                           count: Callable[..., Iterator[int]],
                           total: int,
                           num_tries: int,
@@ -111,6 +106,7 @@ class PDACSummarizer(GridRunnable):
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
+                recovery_time *= 2
             else:
                 break
         else:
@@ -124,35 +120,24 @@ class PDACSummarizer(GridRunnable):
 
         gt_type = field["유형"]
         pv_type = match_text(pdac_report.type, labels)
-        sample = field["sample"]
+        sample_id = int(field.sample_id)
 
         summary = pdac_report.model_dump()
 
         is_hit = gt_type == pv_type
-
-        html = self._generate_html(
-            sample=sample,
-            css_text=css_text,
-            summary=summary,
-            gt_type=gt_type,
-            pv_type=pv_type,
-            is_hit=is_hit,
-            content=content,
-        )
 
         entry = pd.Series({
             "gt_type": gt_type,
             "pv_type": pv_type,
             "summary": summary,
             "content": content,
-            "sample": sample,
-            "html": html,
+            "sample_id": sample_id,
             "hit": is_hit,
             "time": timer.seconds,
         })
 
         self.INFO(
-            f"SAMPLE {int(sample):03d} GT:{Q(gt_type)} PV:{Q(pv_type)} "
+            f"SAMPLE {sample_id:03d} GT:{Q(gt_type)} PV:{Q(pv_type)} "
             f"[{'HIT' if is_hit else "MISS"}] "
             f"TIME: {timer.seconds:.1f}s"
         )
@@ -163,35 +148,64 @@ class PDACSummarizer(GridRunnable):
         )
         return entry
 
-    def _generate_html(self, 
-                       sample: int,
-                       css_text: str,
-                       summary: dict[str, Any],
-                       gt_type: str,
-                       pv_type: str,
-                       is_hit: bool,
-                       content: str
-                       ) -> str:
+    def _prepare_htmls(self, sample_df: pd.DataFrame) -> pd.DataFrame:
+        self.INFO(f"{self.header} SUMMARY HTML PREPARATION proceed ....")
 
-        index = self.get_type_label_index(pv_type) + 1
-        html_file = self.html_dir / f"html_template_type{index}.html"
-        html_text = html_file.read_text()
+        columns = [
+            "css_file",
+            "html_file",
+            "html_args",
+        ]
 
-        summary_df = pd.json_normalize(summary, sep="__")
+        sample_df[columns] = sample_df.apply(
+            self._prepare_html_foreach,
+            count=itertools.count(1),
+            total=sample_df.shape[0],
+            axis=1
+        )
+
+        columns = [
+            "suite_id",
+            "case_id",
+        ]
+        sample_df[columns] = [self.suite_id, self.case_id]
+
+        self.INFO(f"{self.header} SUMMARY HTML PREPARATION proceed DONE")
+        return sample_df
+
+    def _prepare_html_foreach(self, 
+                              sample: pd.Series,
+                              count: Callable[..., Iterator[int]],
+                              total: int,
+                             ) -> pd.Series:
+
+        summary_df = pd.json_normalize(sample.summary, sep="__")
         summary_args = summary_df.to_dict(orient="records")[0]
 
         html_args = {
-            "css_content": css_text,
-            "case_id": self.case_id,
-            "sample": sample,
-            "gt_type": gt_type,
-            "pv_type": pv_type,
-            "hit": "HIT" if is_hit else "MISS",
-            "content": content
+            "sample_id": sample.sample_id,
+            "gt_type": sample.gt_type,
+            "pv_type": sample.pv_type,
+            "hit": "HIT" if sample.hit else "MISS",
+            "content": sample.content
         } | summary_args
 
-        html = html_text.format(**html_args)
-        return html
+        css_file = self.html_dir / "styles.css"
+        index = self.get_type_label_index(sample.pv_type) + 1
+        html_file = self.html_dir / f"html_template_type{index}.html"
+
+        entry = pd.Series({
+            "css_file": str(css_file),
+            "html_file": str(html_file),
+            "html_args": html_args,
+        })
+
+        self.INFO(
+            f"{self.header} SAMPLE HTML {sample.sample_id:03d} "
+            f"[{next(count):02d}/{total:02d}] DONE"
+        )
+
+        return entry
 
     def stringfy_trainsets(self) -> str:
         trainset_df = self.dataset_df["train"].reset_index(drop=True)
@@ -223,17 +237,6 @@ class PDACSummarizer(GridRunnable):
         ]
 
         return indices[0] if indices else -1
-
-    def _summarize_post(self):
-        self.result_df[
-            [
-                "suite_id",
-                "case_id",
-            ]
-        ] = [
-            self.suite_id,
-            self.case_id,
-        ]
 
     @staticmethod
     def reorder_documents(documents: list[Document]) -> list[Document]:

@@ -1,0 +1,74 @@
+metadata:
+  version: v1
+  name: amc-poc-pdac-summarizer
+  label: "2024-12-19"
+  institution: amc
+  task: pdac-summarizer
+  tags:
+  - amc-poc
+  - pdac-summarizer
+  - "2024-12-19"
+
+directive:
+  langsmith: true
+  force: false
+  truncate: false
+  num_selects:
+  num_tries: 5
+  recovery_time: 0.5
+
+export:
+  table:
+    enable: false
+    stem:
+    columns:
+    extension:
+    - .xlsx
+
+  document:
+    enable: true
+    keywords:
+    extension:
+    - .pdf
+    - .docx
+
+models:
+- [gpt-4o]
+
+corpora:
+- mode:
+  - dataset
+  prefix:
+  - ""
+  stem:
+  - pdac-report4
+  extension:
+  - .json
+  seeds:
+  - [[0, 8]]
+  test_size:
+  - 0.2
+  keywords:
+  - ["유형"]
+
+cases:
+- module:
+  - reordered_rag_summarizer
+  content_kr:
+  - classify_prompt
+  - summarize_prompt
+  - question
+  parameter:
+  - topk
+
+parameter:
+  topk:
+  - 10
+
+content_kr:
+  classify_prompt:
+  - pt-cl3-kr.yaml
+  summarize_prompt:
+  - pt-sum1-kr.yaml
+  question:
+  - uq-cl1-kr.yaml

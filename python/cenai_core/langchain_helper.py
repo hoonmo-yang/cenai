@@ -1,5 +1,6 @@
 from typing import Any
 
+from collections.abc import Iterator, Sequence
 from fnmatch import fnmatch
 from lxml import etree
 import os
@@ -11,7 +12,10 @@ import warnings
 
 from llama_index.readers.file import HWPReader
 
+from langchain.agents import AgentExecutor
 from langchain_community.chat_models import ChatClovaX, ChatOllama
+from langchain_core.runnables import Runnable
+from langchain_core.runnables.utils import Input, Output
 
 from langchain_community.document_loaders import (
     Docx2txtLoader, PyMuPDFLoader, TextLoader,
@@ -296,3 +300,17 @@ class LineTextSplitter:
             Document(page_content=page_content)
             for page_content in page_contents
         ]
+
+
+class AgentExecutorRunnable(Runnable):
+    def __init__(self, agent_executor: AgentExecutor):
+        self._agent_executor = agent_executor
+
+    def invoke(self, input: Input, *args, **kwargs) -> Output:
+        return self._agent_executor.invoke(input, *args, **kwargs)
+
+    def batch(self, inputs: Sequence[Input], *args, **kwargs) -> list[Output]:
+        return self._agent_executor.batch(inputs, *args, **kwargs)
+
+    def stream(self, input: Input, *args, **kwargs) -> Iterator[Output]:
+        return self._agent_executor.stream(input, *args, **kwargs)

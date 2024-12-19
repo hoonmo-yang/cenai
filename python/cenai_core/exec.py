@@ -1,11 +1,11 @@
-from typing import (Any, IO, Optional, Union)
+from typing import Any, IO, Optional
 
 import re
 import subprocess
 
 
 def extern_exec(
-    cmd: Union[list[str], str], shell: bool = False, **kwargs
+    cmd: list[str] | str, shell: bool = False, **kwargs
 ) -> int:
     if isinstance(cmd, str) and not shell:
         cmd = re.split(r"\s+", cmd)
@@ -14,7 +14,7 @@ def extern_exec(
     return complete.returncode
 
 
-def pipe_exec(cmd: Union[list[str], str],
+def pipe_exec(cmd: list[str] | str,
               shell: bool = False,
               **kwargs
               ) -> tuple[str, str, int]:

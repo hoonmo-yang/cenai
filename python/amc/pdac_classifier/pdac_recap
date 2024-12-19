@@ -3,7 +3,7 @@
 from cenai_core import Logger
 from cenai_core.grid import GridCLI
 
-from amc.pdac_classifier import PDACRecapper
+from pdac_recapper import PDACRecapper
 
 
 class PDACRecap(Logger):
@@ -19,10 +19,11 @@ class PDACRecap(Logger):
             search_dir="%artifact",
             search_pattern="*",
             search_type="dir",
+            search_filter=lambda path: path.name.endswith("-classifier")
         )
 
     def __call__(self) -> None:
-        self._cli()
+        self._cli.invoke()
 
 
 if __name__ == "__main__":

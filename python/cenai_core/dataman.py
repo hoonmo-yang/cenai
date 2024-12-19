@@ -1,8 +1,8 @@
-from typing import Any, Hashable, Sequence, Union
+from typing import Any, Hashable, Sequence
 
 import hashlib
-import json
 from io import BytesIO
+import json
 from operator import attrgetter, itemgetter
 from pathlib import Path
 import random
@@ -252,7 +252,7 @@ def get_empty_html() -> str:
     return dedent(html)
 
 
-def generate_checksum(src: Union[str, bytes], algorithm: str) -> str:
+def generate_checksum(src: str | bytes, algorithm: str) -> str:
     '''
     Gets string or binary arrays, generate a checksum from it and
     returns it. Checksum algorithm is either sha224, sha256 or md5.

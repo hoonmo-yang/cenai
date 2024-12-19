@@ -7,7 +7,6 @@ metadata:
   tags:
   - nrf-poc
   - research-report-summarizer
-  - "2024-12-15"
 
 directive:
   langsmith: false

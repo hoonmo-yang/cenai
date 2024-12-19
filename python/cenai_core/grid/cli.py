@@ -1,3 +1,5 @@
+from typing import Callable
+
 import argparse
 import os
 from pathlib import Path
@@ -20,6 +22,7 @@ class GridCLI(Logger):
                  search_dir: str,
                  search_pattern: str = "*",
                  search_type: str = "",
+                 search_filter: Callable[[Path], bool] = lambda x: True,
                  argvs: list[str] = [],
                  environ: dict[str, str] = {}
                  ):
@@ -43,6 +46,7 @@ class GridCLI(Logger):
         )
 
         self._search_pattern = search_pattern
+        self._search_filter = search_filter
 
         self._search_checker = (
             lambda x: getattr(x, "is_dir")
@@ -86,7 +90,9 @@ class GridCLI(Logger):
 
         paths = [
             path for path in self._search_dir.glob(self._search_pattern)
-            if self._search_checker(path)
+            if self._search_checker(path) and
+               not path.stem.endswith("-otf") and
+               self._search_filter(path)
         ]
 
         if not paths:

@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing import Callable, Iterator, Optional, Sequence
 
 import itertools
@@ -15,7 +14,8 @@ from cenai_core.postgres import (
     execute_script, from_rows, Postgres, to_columns, to_vars
 )
 
-from amc.pj_summarizer.pj_schema import PJ_SCHEMA
+from pj_schema import PJ_SCHEMA
+from pj_template import PJSummaryTemplate
 
 
 class PJSummarizer(GridRunnable):
@@ -42,15 +42,12 @@ class PJSummarizer(GridRunnable):
         self._build_db_tables()
         self._load_db_tables()
 
-        self._resch_pat_ids = pd.Series()
-
     def _build_db_tables(self) -> None:
         ddl_dir = cenai_path("python/amc/pj_summarizer/sql")
         ddl_file = ddl_dir / "pj_ddl.sql"
 
         with self.conn as conn, conn.cursor() as cursor:
             execute_script(cursor, ddl_file)
-
 
     def _load_db_tables(self) -> None:
         xlsx_file = self.content_dir / "pj-data.xlsx"
@@ -141,7 +138,8 @@ class PJSummarizer(GridRunnable):
             total=self.resch_pat_ids.shape[0],
             num_tries=num_tries,
             recovery_time=recovery_time,
-
+        ).pipe(
+            self._prepare_htmls
         )
 
         self.INFO(f"{self.header} SUMMARIZATION proceed DONE")
@@ -163,7 +161,9 @@ class PJSummarizer(GridRunnable):
             try:
                 timer = Timer()
 
-                response = self.main_chain.invoke(question)
+                response = self.main_chain.invoke({
+                    "question": question
+                })
 
             except KeyboardInterrupt:
                 raise
@@ -173,24 +173,122 @@ class PJSummarizer(GridRunnable):
                 self.ERROR(f"number of tries {i + 1}/{num_tries}")
 
                 Timer.delay(recovery_time)
+                recovery_time *= 2
+
+                response = PJSummaryTemplate(
+                    resch_pat_id=resch_pat_id,
+                    birth_ym="",
+                    sex_cd="",
+                    frst_vist_dt="",
+                    dx_dt="",
+                    prmr_orgn_cd="",
+                    mrph_diag_cd="",
+                    cancer_reg_dt="",
+                    type1="",
+                    type2="",
+                    type3="",
+                    type4="",
+                    total="LLM 내부 오류 발생",
+                )
             else:
                 break
         else:
             self.ERROR(f"number of tries exceeds {num_tries}")
 
-            response = ""
-
         timer.lap()
 
         entry = pd.Series({
             "resch_pat_id": resch_pat_id,
-            "summary": response["output"],
+            "birth_ym": response.birth_ym,
+            "sex_cd": response.sex_cd,
+            "frst_vist_dt": response.frst_vist_dt,
+            "dx_dt": response.dx_dt,
+            "prmr_orgn_cd": response.prmr_orgn_cd,
+            "mrph_diag_cd": response.mrph_diag_cd,
+            "cancer_reg_dt": response.cancer_reg_dt,
+            "type1": response.type1,
+            "type2": response.type2,
+            "type3": response.type3,
+            "type4": response.type4,
+            "total": response.total,
+            "time": timer.seconds,
         })
 
         self.INFO(
-            f"{self.header} CLASSIFY proceed DONE "
-            f"[{next(count):02d}/{total:02d}] proceed DONE"
+            f"{self.header} SUMMARIZATION "
+            f"RESCH_PAT_ID: {Q(resch_pat_id)} TIME {timer.seconds: .1f}s "
+            f"[{next(count):02d}/{total:02d}] DONE"
         )
+        return entry
+
+    def _prepare_htmls(self, summary_df: pd.DataFrame) -> pd.DataFrame:
+
+        self.INFO(f"{self.header} SUMMARY HTML PREPARATION proceed ....")
+
+        columns = [
+            "resch_pat_id",
+            "css_file",
+            "html_file",
+            "html_args",
+        ]
+
+        summary_df[columns] = summary_df.apply(
+            self._prepare_html_foreach,
+            count=itertools.count(1),
+            total=summary_df.shape[0],
+            axis=1
+        )
+
+        columns = [
+            "suite_id",
+            "case_id",
+        ]
+        summary_df[columns] = [self.suite_id, self.case_id]
+
+        self.INFO(f"{self.header} SUMMARY HTML PREPARATION proceed DONE")
+        return summary_df
+
+    def _prepare_html_foreach(self,
+                              summary: pd.Series,
+                              count: Callable[..., Iterator[int]],
+                              total: int,
+                              ) -> pd.Series:
+        resch_pat_id = f"{summary.resch_pat_id:010d}"
+
+        html_args = {
+            "resch_pat_id": resch_pat_id,
+        } | {
+            key: summary[key] for key in [
+                "birth_ym",
+                "sex_cd",
+                "frst_vist_dt",
+                "dx_dt",
+                "prmr_orgn_cd",
+                "mrph_diag_cd",
+                "cancer_reg_dt",
+                "type1",
+                "type2",
+                "type3",
+                "type4",
+                "total",
+            ]
+        }
+
+        css_file = self.html_dir / "styles.css"
+        html_file = self.html_dir / "html_template.html"
+
+        entry = pd.Series({
+            "resch_pat_id": resch_pat_id,
+            "css_file": str(css_file),
+            "html_file": str(html_file),
+            "html_args": html_args,
+        })
+
+        self.INFO(
+            f"{self.header} REPORT HTML {Q(resch_pat_id)} "
+            f"[{next(count):02d}/{total:02d}] DONE"
+        )
+
         return entry
 
     @property

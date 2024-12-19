@@ -1,8 +1,7 @@
-from typing import Any, Union
+from typing import Any
 
 from io import BytesIO
 from datetime import datetime
-import pandas as pd
 from pathlib import Path
 from shutil import rmtree
 import streamlit as st
@@ -35,10 +34,9 @@ class ResearchResportSummarizationStreamlit(Logger):
                 "html": [],
             }
 
-        self._choice = None
         self._run_button = None
 
-    def _get_dirs(self, name_only: bool) -> list[Union[Path, str]]:
+    def _get_dirs(self, name_only: bool) -> list[Path | str]:
         dirs = [
             dir_ for dir_ in self.corpus_dir.glob("*")
             if dir_.is_dir()
@@ -195,7 +193,6 @@ class ResearchResportSummarizationStreamlit(Logger):
 
             if st.button("Clear Cache", use_container_width=True):
                 st.cache_data.clear()
-
                 self._profile["directive"]["force"] = True
                 self._profile["directive"]["truncate"] = True
 

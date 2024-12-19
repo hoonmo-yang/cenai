@@ -1,9 +1,7 @@
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional
 
-from dateutil.parser import parse
 from io import StringIO
 import json
-import numpy as np
 from os import PathLike
 import pandas as pd
 from pathlib import Path
@@ -39,8 +37,8 @@ class DataFrameSchema:
             self,
             serializer: str = "",
             header: int = 0,
-            skiprows: list[Union[range, int]] = [],
-            usecols: list[Union[range, int]] = [],
+            skiprows: list[range | int] = [],
+            usecols: list[range | int] = [],
             columns: Columns = [],
             converters: dict[str, Callable[[Any], Any]] = {}
     ):
@@ -139,7 +137,7 @@ def to_structured_dataframe(
 
 
 def excel_to_structured_dataframe(
-    excel: Union[str, PathLike[str]],
+    excel: str | PathLike[str],
     sheet_name: str,
     schema: DataFrameSchema,
     force: bool = False,
@@ -168,7 +166,7 @@ def excel_to_structured_dataframe(
 
 
 def json_to_structured_dataframe(
-    json: Union[str, PathLike[str]],
+    json: str | PathLike[str],
     schema: DataFrameSchema,
     force: bool = False
 ) -> pd.DataFrame:
@@ -196,7 +194,7 @@ def json_to_structured_dataframe(
 
 def structured_dataframe_to_json(
         data_df: pd.DataFrame,
-        json: Union[str, PathLike[str]]
+        json: str | PathLike[str]
     ) -> None:
     data_df.to_json(json, date_unit="ns", force_ascii=False)
 

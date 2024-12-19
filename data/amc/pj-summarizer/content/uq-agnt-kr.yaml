@@ -1,0 +1,18 @@
+input_variables:
+- resch_pat_id
+
+content: |
+  당신은 연구환자 ID(컬럼명: resch_pat_id)가 {resch_pat_id}인 환자에 대하여
+  환자의 진료 여정을 위에서 언급한 4가지 유형 별로 각각 요약해야 합니다.
+  유형 별로 요약할 때 해당 유형에 속하는 진료 여정 항목만 포함해야 합니다.
+  반드시 한국어를 사용해서 요약하십시오.
+
+  유형 별 요약과 더불어 아래 내역도 알려주십시오.
+  * 연구환자ID (컬럼명: resch_pat_id)
+  * 생년월 (컬럼명: birth_ym)
+  * 성별코드 (컬럼명: sex_cd)
+  * 최초내원일자 (컬럼명: frst_vist_dt)
+  * 진단일자 (컬럼명: dx_dt)
+  * 원발장기코드 (컬럼명: prmr_orgn_cd)
+  * 형태학적진단코드 (컬럼명: mrph_diag_cd)
+  * 암등록일 (컬럼명: cancer_reg_dt)

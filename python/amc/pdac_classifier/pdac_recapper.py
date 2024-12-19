@@ -22,14 +22,14 @@ class PDACRecapper(BaseRunner):
             if not datastore_json.is_file():
                 continue
 
-            some_metadata_df, some_result_df, *_ = from_json(datastore_json)
-
-            metadata_df = pd.concat(
-                [metadata_df, some_metadata_df], axis=0,
-            )
+            some_result_df, some_metadata_df, *_ = from_json(datastore_json)
 
             result_df = pd.concat(
                 [result_df, some_result_df], axis=0,
+            )
+
+            metadata_df = pd.concat(
+                [metadata_df, some_metadata_df], axis=0,
             )
 
         metadata_df = metadata_df.reset_index(drop=True)
@@ -38,6 +38,11 @@ class PDACRecapper(BaseRunner):
         metadata_df["tags"] = metadata_df.apply(
              lambda field: ",".join(field.tags),
              axis=1
+        )
+
+        metadata_df["model"] = metadata_df.apply(
+            lambda field: field.models[0],
+            axis=1
         )
 
         parameters = [
@@ -53,6 +58,7 @@ class PDACRecapper(BaseRunner):
                 "task",
                 "tags",
                 "model",
+                "models",
                 "module",
                 "corpus_mode",
                 "corpus_prefix",
@@ -162,7 +168,7 @@ class PDACRecapper(BaseRunner):
 
         return deviate_df
 
-    def __call__(self) -> None:
+    def invoke(self) -> None:
         self.export_excel()
 
     @property

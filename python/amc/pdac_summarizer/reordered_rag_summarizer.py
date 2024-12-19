@@ -19,11 +19,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from cenai_core.dataman import Struct
 from cenai_core.langchain_helper import load_prompt
 
-from amc.pdac_summarizer import (
-    PDACSummarizer, PDACResultClassify, PDACReportTemplateFail
-)
-
-from amc.pdac_summarizer import pdac_template
+from pdac_summarizer import PDACSummarizer
+import pdac_template
+from pdac_template import PDACResultClassify, PDACReportTemplateFail
 
 
 class ReorderedRagSummarizer(PDACSummarizer):
@@ -96,10 +94,7 @@ class ReorderedRagSummarizer(PDACSummarizer):
         )
 
         splits = splitter.split_documents(documents)
-
-        bm25_retriever = BM25Retriever.from_documents(
-            documents=splits,
-        )
+        bm25_retriever = BM25Retriever.from_documents(documents=splits,)
         bm25_retriever.k = 1
 
         vectorstore = FAISS.from_documents(

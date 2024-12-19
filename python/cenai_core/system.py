@@ -1,10 +1,14 @@
 from typing import Optional
+
 from datetime import timedelta
 import dotenv
 import os
 from pathlib import Path
 import time
 from timeit import default_timer
+
+
+dotenv.load_dotenv("cenai_core/default.env")
 
 
 def cenai_path(*args) -> Path:

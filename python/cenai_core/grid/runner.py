@@ -1,5 +1,4 @@
-from __future__ import annotations
-from typing import Any, Callable, Iterator, Optional, Sequence, Union
+from typing import Any, Callable, Iterator, Optional
 
 import copy
 import importlib
@@ -43,6 +42,15 @@ class BaseRunner(Logger):
     def __init__(self):
         super().__init__()
 
+    def invoke(self) -> None:
+        pass
+
+    def export_tables(self) -> None:
+        pass
+
+    def export_documents(self) -> None:
+        pass
+
 
 class GridRunner(BaseRunner):
     version = "v1"
@@ -50,13 +58,13 @@ class GridRunner(BaseRunner):
     data_dir = cenai_path("data")
     artifact_dir = cenai_path("artifact")
 
-    def __init__(self, profile: Optional[Union[Path, dict[str, Any]]] = None):
+    def __init__(self, profile: Optional[Path | dict[str, Any]] = None):
         super().__init__()
 
         if profile is not None:
             self.update(profile)
 
-    def update(self, profile: Union[Path, dict[str, Any]]) -> None:
+    def update(self, profile: Path | dict[str, Any]) -> None:
         self._recipe = self._load_gridsuite_recipe(profile)
         self._suite = self._update_gridsuite()
 
@@ -80,7 +88,7 @@ class GridRunner(BaseRunner):
     @classmethod
     def _load_gridsuite_recipe(
             cls,
-            profile: Union[Path, dict[str, Any]]
+            profile: Path | dict[str, Any]
         ) -> Struct:
 
         if isinstance(profile, Path):
@@ -333,8 +341,8 @@ class GridRunner(BaseRunner):
             stem: str,
             extension: str,
             test_size: float,
-            keywords: Union[str, list[str]],
-            seeds: Union[int, list[Union[int, list[int]]]]
+            keywords: str | list[str],
+            seeds: int | list[int | list[int]]
         ) -> list[dict[str, Any]]:
 
         source_corpus_dir = self.source_corpus_dir / prefix 
@@ -391,10 +399,10 @@ class GridRunner(BaseRunner):
 
                 for tag in ["train", "test"]:
                     dataframe = target_df[tag].reset_index().rename(
-                        columns={"index": "sample"}
+                        columns={"index": "sample_id"}
                     )
 
-                    dataframe["sample"] = dataframe["sample"].astype(int)
+                    dataframe["sample_id"] = dataframe["sample_id"].astype(int)
 
                     target_dir = corpus_dir / tag
                     target_file = target_dir / f"{Path(corpus_stem).name}{extension}"
@@ -416,7 +424,7 @@ class GridRunner(BaseRunner):
 
     def _fanout_seeds(
             self,
-            seeds: Union[int, list[Union[int, list[int]]]]
+            seeds: int | list[int | list[int]]
         ) -> list[int]:
 
         if isinstance(seeds, int):
@@ -598,15 +606,16 @@ class GridRunner(BaseRunner):
 
         export = self.recipe.export_table
 
+        extensions = optional(export.pop("extension", None), [])
+
         if not export.pop("enable", False) or not self.data_json.is_file():
             self.INFO(f"{self.header} TABLE EXPORT proceed DONE")
-            return self.export_dir
+            return self.export_dir, extensions
 
         result_df, metadata_df, *_ = from_json(self.data_json)
 
         stem = optional(export.pop("stem", None), self.suite_id)
         columns = optional(export.pop("columns", None), [])
-        extensions = optional(export.pop("extension", None), [])
 
         export_df = pd.merge(
             result_df,
@@ -724,12 +733,13 @@ class GridRunner(BaseRunner):
 
         export = self.recipe.export_document
 
+        extensions = export.pop("extension", [])
+
         if not export.pop("enable", False) or not self.data_json.is_file():
             self.INFO(f"{self.header} DOCUMENT EXPORT proceed DONE")
-            return
+            return self.export_dir, extensions
 
         keywords = export.pop("keywords", [])
-        extensions = export.pop("extension", [])
 
         result_df = self.generate_htmls()
 
@@ -753,6 +763,7 @@ class GridRunner(BaseRunner):
 
             self._export_document_foreach(
                 result_df.html,
+                extensions=extensions,
                 count=itertools.count(1),
                 total=1,
             )

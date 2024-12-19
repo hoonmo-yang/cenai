@@ -5,16 +5,17 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>PDAC Report</title>
 
-        <link rel="font-kr" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
         {css_content}
+
+        <link rel="font-kr" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
     </head>
     <body>
         <h2>개요</h2>
         <div class="section">
             <table>
             <tr>
-                <td>ID</td>
-                <td>{case_id} [Sample {sample:02d}]</td>
+                <td style="width: 20%;">SAMPLE ID</td>
+                <td>{sample_id:03d}</td>
             </tr>
             <tr>
                 <td>정답 유형</td>

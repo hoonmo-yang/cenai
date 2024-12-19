@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import numpy as np
 import os
@@ -142,16 +142,16 @@ def to_updates(
     return ", ".join(updates)
 
 
-def from_rows(rows: Union[list[Any], None]) -> list[Any]:
+def from_rows(rows: Optional[list[Any]]) -> list[Any]:
     return optional(rows, [])
 
 
-def from_row(row: Union[tuple[Any, ...], None], k: int = 0) -> Optional[Any]:
+def from_row(row: Optional[tuple[Any, ...]], k: int = 0) -> Optional[Any]:
     return None if row is None else row[k]
 
 
 def from_records(
-    src: list[Any], columns: Optional[Union[pd.Index, list[str]]] = None,
+    src: list[Any], columns: Optional[pd.Index | list[str]] = None,
     pgconv: PgConv = {}
 ) -> pd.DataFrame:
     data = pd.DataFrame.from_records(
@@ -205,7 +205,7 @@ def to_var(data: pd.DataFrame,
 
 
 def execute_script(cursor: psycopg2.extensions.cursor,
-                   text: Union[Path, str]) -> None:
+                   text: Path | str) -> None:
     if isinstance(text, Path):
         text = text.read_text()
 

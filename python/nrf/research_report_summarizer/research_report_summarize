@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 from cenai_core import Logger
 from cenai_core.grid import GridCLI, GridRunner
 
