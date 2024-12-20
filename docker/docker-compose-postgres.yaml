@@ -1,0 +1,13 @@
+services:
+  posgres:
+    image: postgres:latest
+    container_name: postgres_cenai
+    environment:
+      POSTGRES_USER: ${POSTGRES_CENAI_USER}
+      POSTGRES_PORT: ${POSTGRES_CENAI_PORT}
+      POSTGRES_PASSWORD: ${POSTGRES_CENAI_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_CENAI_DB}
+    ports:
+    - "5432:5432"
+    volumes:
+    - /var/lib/docker_volumes/postgresql/data:/var/lib/postgresql/data

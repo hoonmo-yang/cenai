@@ -602,7 +602,7 @@ class ResearchReportSummarizer(GridRunnable):
 
     def _extract_report_summaries(
             self,
-            report_df: pd.DataGrame,
+            report_df: pd.DataFrame,
             num_tries: int,
             recovery_time: int
         ) -> pd.DataFrame:

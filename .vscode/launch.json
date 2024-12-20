@@ -17,7 +17,7 @@
             "name": "Python Debugger: Streamlit",
             "type": "debugpy",
             "request": "launch",
-            "program": "/home/itcen/miniforge3/envs/cenai/bin/streamlit",
+            "program": "/home/itcen/miniconda3/envs/cenai/bin/streamlit",
             "args": [
                 "run",
                 "${file}"

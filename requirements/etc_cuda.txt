@@ -1,4 +1,0 @@
-# General Packages
---index-url https://pypi.org/simple
-
-faiss-gpu-cu12

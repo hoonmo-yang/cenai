@@ -64,7 +64,7 @@ parameter:
   max_tokens:
   - 600
   num_datasets:
-  - 1200
+  - 10
 
 content_kr:
   generate_prompt:

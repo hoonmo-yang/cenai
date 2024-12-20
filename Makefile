@@ -1,62 +1,67 @@
 BASE_DIR = .
-CENAI_ENGINE ?= cpu
+
+PYTHON_VERSION = 3.12
+RECIPIENT = hmyang@itcen.com
+
+CENAI_DIR = $(PWD)
+CONDA_ENV = $(notdir $(PWD))
 
 include $(BASE_DIR)/include-mks/common.mk
 
-list::
+info list::
 	conda $@
 
-install::
-	$(PIP) install -U -r requirements/general.txt
-
-ifeq ($(CENAI_ENGINE),cuda)
-	$(PIP) install -U -r requirements/etc_cuda.txt
-	$(PIP) install -U -r requirements/pytorch_cuda.txt
-else
-ifeq ($(CENAI_ENGINE),rocm)
-	$(PIP) install -U -r requirements/pytorch_rocm.txt
-else 
-ifeq ($(CENAI_ENGINE),cpu)
-	$(PIP) install -U -r requirements/etc_cpu.txt
-	$(PIP) install -U -r requirements/pytorch_cpu.txt
-else
-	$(error unknown value of CENAI_ENGINE: $(CENAI_ENGINE))
-endif
-endif
-endif
-	@$(PIP) freeze > freeze.tmp
-	@if [ ! -f freeze.txt ] || ! $(CMP) -s freeze.tmp freeze.txt; then \
-		if [ -f freeze.txt ]; then \
-			$(MV) freeze.txt freeze.bak; \
-		fi; \
-		$(MV) freeze.tmp freeze.txt; \
+clean::
+	@if [ "$$CONDA_DEFAULT_ENV" = $(CONDA_ENV) ]; then \
+		echo "ERROR: Current conda environment is $(CONDA_ENV). \
+	Run 'conda deactivate' before running 'make clean'" >&2; \
+	false; \
 	fi
-	@$(RM) -f freeze.tmp
 
-clean:: 
-	$(PIP) uninstall -U -r requirements/general.txt
+	$(CONDA) env remove -n $(CONDA_ENV) -y
+	$(CONDA) create -n $(CONDA_ENV) python=$(PYTHON_VERSION) -y
+	echo "Run 'conda activate $(CONDA_ENV)' and Run 'make install'"
 
-ifeq ($(CENAI_ENGINE),cuda)
-	$(PIP) uninstall -U -r requirements/etc_cuda.txt
-	$(PIP) uninstall -U -r requirements/llamacpp_cuda.txt
-	$(PIP) uninstall -U -r requirements/pytorch_cuda.txt
-else
-ifeq ($(CENAI_ENGINE),rocm)
-	$(PIP) uninstall -U -r requirements/pytorch_rocm.txt
-else
-ifeq ($(CENAI_ENGINE),cpu)
-	$(PIP) uninstall -U -r requirements/etc_cpu.txt
-	$(PIP) uninstall -U -r requirements/pytorch_cpu.txt
-else
-	$(error unknown value of CENAI_ENGINE: $(CENAI_ENGINE))
-endif
-endif
-endif
-	@$(PIP) freeze > freeze.tmp
-	@if [ ! -f freeze.txt ] || ! $(CMP) -s freeze.tmp freeze.txt; then \
-		if [ -f freeze.txt ]; then \
-			$(MV) freeze.txt freeze.bak; \
-		fi; \
-		$(MV) freeze.tmp freeze.txt; \
+install:: create_default_env install_basic install_engine
+	@if [ -f freeze.txt ]; then \
+		$(MV) freeze.txt freeze.bak; \
 	fi
-	@$(RM) -f freeze.tmp
+	@$(PIP) freeze > freeze.txt
+
+create_default_env::
+	@echo create $(BASE_DIR)/python/cenai_core/default.env
+	@echo \
+	export CENAI_DIR=$(CENAI_DIR)\
+	> $(BASE_DIR)/python/cenai_core/default.env
+
+install_basic::
+	@if [ "$$CONDA_DEFAULT_ENV" != $(CONDA_ENV) ]; then \
+		echo "ERROR: Current conda environment is $$CONDA_DEFAULT_ENV. \
+	Run 'conda activate $(CONDA_ENV)' before running 'make install'" >&2; \
+	false; \
+	fi
+	$(PIP) install -U -r requirements/basic.txt
+
+install_engine::
+	@if command -v nvidia-smi &> /dev/null; then \
+		echo "CUDA version installed"; \
+		$(PIP) install -U -r requirements/pytorch_cuda.txt; \
+		$(CONDA) install -c pytorch -c nvidia faiss-gpu=1.9.0 -y; \
+	elif [ -d "/opt/rocm" ]; then \
+		echo "ROCM version installed"; \
+		$(PIP) install -U -r requirements/pytorch_rocm.txt; \
+		$(PIP) install -U -r requirements/other_cpu.txt; \
+	else \
+		echo "CPU version installed"; \
+		$(PIP) install -U -r requirements/pytorch_cpu.txt; \
+		$(PIP) install -U -r requirements/other_cpu.txt; \
+	fi
+
+up down ps::
+	$(MAKE) -C $(DOCKER_DIR) $@
+
+encrypt::
+	@$(GPG) --encrypt --yes --recipient $(RECIPIENT) --output $(CF_DIR)/env.gpg $(CF_DIR)/.env
+
+decrypt::
+	@$(GPG) --decrypt --yes --output $(CF_DIR)/.env $(CF_DIR)/env.gpg
