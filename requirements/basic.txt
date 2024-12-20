@@ -2,16 +2,20 @@
 --index-url https://pypi.org/simple
 
 bs4
+datasets
+huggingface-hub
 langchain
+langchain-ollama
 langchain-community
 langchain-huggingface
 langchain-openai
-langserve
 langgraph
+langserve
 llama-index
 matplotlib
 numpy
 olefile
+ollama
 openpyxl
 pandas
 psycopg2-binary
@@ -21,6 +25,8 @@ python-docx
 python-pptx
 rank_bm25
 rapidfuzz
+sentence-transformers
 streamlit
+transformers
 unstructured
 weasyprint

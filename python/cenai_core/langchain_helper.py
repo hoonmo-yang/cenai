@@ -13,7 +13,8 @@ import warnings
 from llama_index.readers.file import HWPReader
 
 from langchain.agents import AgentExecutor
-from langchain_community.chat_models import ChatClovaX, ChatOllama
+from langchain_community.chat_models import ChatClovaX
+from langchain_ollama import ChatOllama
 from langchain_core.runnables import Runnable
 from langchain_core.runnables.utils import Input, Output
 
