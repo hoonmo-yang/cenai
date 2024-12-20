@@ -402,6 +402,7 @@ freeze.txt
 freeze.bak
 default.env
 model/
+*.asc
 
 !bin/
 artifact/

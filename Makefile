@@ -65,3 +65,12 @@ encrypt::
 
 decrypt::
 	@$(GPG) --decrypt --yes --output $(CF_DIR)/.env $(CF_DIR)/env.gpg
+
+gpg_export::
+	gpg --export-secret-keys -a "$(RECIPIENT)" > $(CF_DIR)/private_key.asc
+	gpg --export -a "$(RECIPIENT)" > $(CF_DIR)/public_key.asc
+
+gpg_import::
+	gpg --import $(CF_DIR)/private_key.asc
+	gpg --import $(CF_DIR)/public_key.asc
+	gpg --edit-key $(RECIPIENT)
