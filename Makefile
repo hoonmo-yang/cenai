@@ -61,10 +61,10 @@ up down ps::
 	$(MAKE) -C $(DOCKER_DIR) $@
 
 encrypt::
-	@$(GPG) --encrypt --yes --recipient $(RECIPIENT) --output $(CF_DIR)/env.gpg $(CF_DIR)/.env
+	@$(GPG) --encrypt --yes --armor --recipient $(RECIPIENT) --output $(CF_DIR)/env.gpg $(CF_DIR)/.env
 
 decrypt::
-	@$(GPG) --decrypt --yes --output $(CF_DIR)/.env $(CF_DIR)/env.gpg
+	@$(GPG) --decrypt --yes --armor --output $(CF_DIR)/.env $(CF_DIR)/env.gpg
 
 gpg_export::
 	gpg --export-secret-keys -a "$(RECIPIENT)" > $(CF_DIR)/private_key.asc
