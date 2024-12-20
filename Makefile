@@ -43,7 +43,7 @@ install_basic::
 	$(PIP) install -U -r requirements/basic.txt
 
 install_engine::
-	@if command -v nvidia-smi &> /dev/null; then \
+	@if command -v nvidia-smi > /dev/null 2>&1; then \
 		echo "CUDA version installed"; \
 		$(PIP) install -U -r requirements/pytorch_cuda.txt; \
 		$(CONDA) install -c pytorch -c nvidia faiss-gpu=1.9.0 -y; \
