@@ -17,8 +17,10 @@ clean::
 	Run 'conda deactivate' before running 'make clean'" >&2; \
 	false; \
 	fi
+	@if conda info --envs | grep -q "$(CONDA_ENV)"; then \
+		$(CONDA) env remove -n $(CONDA_ENV) -y; \
+	fi
 
-	$(CONDA) env remove -n $(CONDA_ENV) -y
 	$(CONDA) create -n $(CONDA_ENV) python=$(PYTHON_VERSION) -y
 	echo "Run 'conda activate $(CONDA_ENV)' and Run 'make install'"
 
