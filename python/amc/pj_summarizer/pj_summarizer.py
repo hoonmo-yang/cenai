@@ -92,6 +92,14 @@ class PJSummarizer(GridRunnable):
                 schema=PJ_SCHEMA[table_name],
             )
 
+            if table_name in ["patient"]:
+                data_df["nickname"] = [
+                    "김철수",
+                    "이원국",
+                    "최효준",
+                    "박영희",
+                ]
+
             with self.conn as conn, conn.cursor() as cursor:
                 cursor.execute(
                     f'''

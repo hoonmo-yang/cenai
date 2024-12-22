@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS public.patient (
     patient_id int4 NOT NULL GENERATED ALWAYS AS IDENTITY,
+    nickname varchar, -- 환자별명
     resch_pat_id int4 NOT NULL, -- 연구환자ID
     birth_ym date, -- 생년월
     sex_cd varchar, -- 성별코드
