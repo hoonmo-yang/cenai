@@ -301,3 +301,15 @@ def generate_zip_buffer(files: list[Path]) -> BytesIO:
 
     zip_buffer.seek(0)
     return zip_buffer
+
+
+def compact_list(a: list[Any],
+                 head: int,
+                 tail: int
+                 ) -> list[Any]:
+    total = len(a)
+    h = a[:head]
+    t_start = max(head, total - tail)
+    t = a[t_start:]
+
+    return h + t

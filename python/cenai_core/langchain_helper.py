@@ -45,8 +45,19 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from cenai_core.dataman import load_json_yaml, split_by_length
 
 
-default_model_name = "llama3.1:latest"
+default_model_name = "llama3.2:latest"
 
+
+class CenaiChatOllama(ChatOllama):
+    def __init__(self, model: str, **kwargs):
+        super().__init__(model=model, **kwargs)
+        self._model_name = model
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+        
 class LangchainHelper:
     model_name = default_model_name
 
@@ -76,7 +87,7 @@ class LangchainHelper:
             )
             if vendor == "clovax" else
 
-            ChatOllama(
+            CenaiChatOllama(
                 model=cls.model_name,
                 **kwargs
             )
