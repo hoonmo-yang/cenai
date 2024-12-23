@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterator, Optional, Sequence
+from typing import Any, Callable, Iterator, Sequence
 
 from abc import ABC, abstractmethod
 import itertools
@@ -8,9 +8,10 @@ from langchain_community.document_transformers import LongContextReorder
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables.utils import Output
 
 from cenai_core import Timer
-from cenai_core.dataman import load_text, optional, Q, Struct
+from cenai_core.dataman import load_text, Q, Struct
 from cenai_core.nlp import match_text
 from cenai_core.grid import GridRunnable
 from cenai_core.langchain_helper import ChainContext
@@ -63,15 +64,27 @@ class PDACClassifier(GridRunnable, ABC):
         ]
         return sections if sections else ["본문", "결론"]
 
-    def run(self, **directive) -> None:
-        self._classify(**directive)
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               **kwargs) -> Iterator[Output]:
+        return iter([])
+
+    def invoke(self, **directive) -> None:
+        num_selects = directive.get("num_selects", 1)
+        num_tries = directive.get("num_tries", 10)
+        recovery_time = directive.get("recovery_time", 0.5)
+
+        self._classify(
+            num_selects=num_selects,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        )
 
     def _classify(
             self,
-            num_selects: Optional[int] = None,
-            num_tries: Optional[int] = None,
-            recovery_time: Optional[int] = None,
-            **kwargs
+            num_selects : int,
+            num_tries: int,
+            recovery_time: float
         ) -> None:
         self.INFO(f"{self.header} CLASSIFY proceed ....")
 
@@ -80,9 +93,6 @@ class PDACClassifier(GridRunnable, ABC):
             num_selects=num_selects,
             keywords=["유형", "sample_id"],
         )
-
-        num_tries = optional(num_tries, 5)
-        recovery_time = optional(recovery_time, 2)
 
         context = self.classify_pre()
 
@@ -114,7 +124,7 @@ class PDACClassifier(GridRunnable, ABC):
                          count: Callable[..., Iterator[int]],
                          total: int,
                          num_tries: int,
-                         recovery_time: int,
+                         recovery_time: float,
                          context: ChainContext
                          ) -> pd.Series:
         content = "\n".join([

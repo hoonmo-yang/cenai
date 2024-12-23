@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Sequence
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from fnmatch import fnmatch
 from lxml import etree
 import os
@@ -147,22 +147,23 @@ def load_prompt(
     ]
 
     return (
-        {key: parameter.pop(key) for key in keys},
-        parameter.pop("partial_variables", [])
+        {key: parameter[key] for key in keys},
+        parameter.get("partial_variables", [])
     )
 
 
-def load_chatprompt(prompt_file: Path) -> dict[str, Any]:
+def load_chatprompt(prompt_file: Path) -> tuple[dict[str, Any], list[str]]:
     parameter = load_json_yaml(prompt_file)
 
-    messages = parameter.pop("messages", [])
-
-    parameter["messages"] = [
-        (message["role"], message["content"])
-        for message in messages
+    keys = [
+        "input_variables",
+        "messages",
     ]
 
-    return parameter
+    return (
+        {key: parameter[key] for key in keys},
+        parameter.get("partial_variables", [])
+    )
 
 
 class ChainContext(BaseModel):

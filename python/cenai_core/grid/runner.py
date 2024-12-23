@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional, Sequence
 
 import copy
 import importlib
@@ -9,6 +9,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 import shutil
 from sklearn.model_selection import train_test_split
+
+from langchain_core.runnables.utils import Output
 
 from cenai_core.dataman import (
     load_json_yaml, get_empty_html, optional, ordinal, Q, Struct, to_camel
@@ -45,11 +47,16 @@ class BaseRunner(Logger):
     def invoke(self) -> None:
         pass
 
-    def export_tables(self) -> None:
-        pass
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]]
+               ) -> list[Iterator[Output]]:
+        return []
+
+    def export_tables(self) -> tuple[Path, list[str]]:
+        return Path(), []
 
     def export_documents(self) -> None:
-        pass
+        return Path(), []
 
 
 class GridRunner(BaseRunner):
@@ -180,7 +187,8 @@ class GridRunner(BaseRunner):
                 "directive",
             ]
         } | {
-            f"export_{key}": profile["export"][key] for key in [
+            f"export_{key}": None if "export" not in profile else
+            profile["export"].get(key) for key in [
                 "table",
                 "document",
             ]
@@ -206,7 +214,6 @@ class GridRunner(BaseRunner):
             ["task", "metadata", str],
             ["tags", "metadata", list],
             ["directive", "", dict],
-            ["export", "", dict],
             ["models", "", list],
             ["corpora", "", list],
             ["cases", "", list],
@@ -513,6 +520,37 @@ class GridRunner(BaseRunner):
             **case_args
         )
 
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]]
+               ) -> list[Iterator[Output]]:
+        self.INFO(f"{self.header} proceed ....")
+
+        all_corpus_args = self._prepare_corpora()
+
+        load_dotenv(self.recipe.directive.get("langsmith"))
+
+        streams = []
+
+        for case in self.recipe.cases:
+            for values in product(*case.values()):
+                case_args = dict(zip(case.keys(), values))
+
+                for corpus_args in all_corpus_args:
+                    instance = self.get_instance(
+                        case_args=dict(case_args),
+                        corpus_args=corpus_args,
+                    )
+
+                    stream = instance.stream(
+                        messages=messages,
+                        **self.recipe.directive
+                    )
+
+                    streams.append(stream)
+
+        self.INFO(f"{self.header} proceed DONE")
+        return streams
+
     def yield_result(self) -> pd.DataFrame:
         self.invoke()
         return pd.DataFrame(self.generate_htmls())
@@ -540,7 +578,7 @@ class GridRunner(BaseRunner):
                             corpus_args=corpus_args,
                         )
 
-                        instance.run(**self.recipe.directive)
+                        instance.invoke(**self.recipe.directive)
 
                         self._save(instance.result_df, instance.metadata_df)
 
@@ -605,6 +643,9 @@ class GridRunner(BaseRunner):
         self.INFO(f"{self.header} TABLE EXPORT proceed ....")
 
         export = self.recipe.export_table
+
+        if export is None:
+            return self.export_dir, []
 
         extensions = optional(export.pop("extension", None), [])
 
@@ -732,6 +773,9 @@ class GridRunner(BaseRunner):
         self.INFO(f"{self.header} DOCUMENT EXPORT proceed ....")
 
         export = self.recipe.export_document
+
+        if export is None:
+            return self.export_dir, []
 
         extensions = export.pop("extension", [])
 

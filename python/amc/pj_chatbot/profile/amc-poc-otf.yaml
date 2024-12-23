@@ -1,0 +1,29 @@
+metadata:
+  version: v1
+  name: amc-poc-otf-pj-chatbot
+  label: ""
+  institution: amc
+  task: pj-chatbot
+  tags:
+  - amc-poc
+  - pj-chatbot
+
+directive:
+  langsmith: false
+
+models:
+# - [gpt-4o]
+
+corpora:
+- mode:
+  - none
+
+cases:
+- module:
+  - vanila_chatbot
+  content_kr:
+  - agent_prompt
+
+content_kr:
+  agent_prompt:
+  - pt-agnt1-kr.yaml

@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 
 from cenai_core import cenai_path
 from cenai_core import Logger
-from cenai_core.dataman import generate_zip_buffer, get_empty_html, load_json_yaml, Q
+from cenai_core.dataman import generate_zip_buffer, get_empty_html, load_json_yaml
 from cenai_core.grid import GridRunner
 
 
@@ -23,17 +23,17 @@ class PJSummarizationStreamlit(Logger):
             layout="wide",
         )
 
-        self._profile = load_json_yaml(self.profile_file)
-
         if "result" not in st.session_state:
             st.session_state.result = {
                 "resch_pat_id": [],
                 "html": [],
             }
 
-        self._run_button = None
+        self._change_parameter_values()
 
     def _change_parameter_values(self):
+        self._profile = load_json_yaml(self.profile_file)
+
         with st.sidebar:
             st.subheader("파라미터 세팅")
 
@@ -97,8 +97,6 @@ class PJSummarizationStreamlit(Logger):
         return [zip_buffer, f"{runner.suite_id}.zip"]
 
     def invoke(self):
-        self._change_parameter_values()
-
         if self._run_button:
             st.session_state.result = self._get_result(self._profile)
             self._profile["directive"]["force"] = False

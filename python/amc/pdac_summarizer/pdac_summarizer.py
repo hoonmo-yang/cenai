@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterator, Optional, Sequence
+from typing import Any, Callable, Iterator, Sequence
 
 import itertools
 import pandas as pd
@@ -6,9 +6,10 @@ import pandas as pd
 from langchain_community.document_transformers import LongContextReorder
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables.utils import Output
 
 from cenai_core import Timer
-from cenai_core.dataman import load_text, optional, Q, Struct
+from cenai_core.dataman import load_text, Q, Struct
 from cenai_core.grid import GridRunnable
 from cenai_core.nlp import match_text
 
@@ -36,15 +37,27 @@ class PDACSummarizer(GridRunnable):
             lambda _: PDACReportTemplateFail(message="Not initialized yet")
         )
 
-    def run(self, **directive) -> None:
-        self._summarize(**directive)
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               **kwargs) -> Iterator[Output]:
+        return iter([])
+
+    def invoke(self, **directive) -> None:
+        num_selects = directive.get("num_selects", 1)
+        num_tries = directive.get("num_tries", 10)
+        recovery_time = directive.get("recovery_time", 0.5)
+
+        self._summarize(
+            num_selects=num_selects,
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        )
 
     def _summarize(
             self,
-            num_selects: Optional[int] = None,
-            num_tries: Optional[int] = None,
-            recovery_time: Optional[int] = None,
-            **kwargs
+            num_selects: int,
+            num_tries: int,
+            recovery_time: float
         ) -> None:
         self.INFO(f"{self.header} SUMMARIZE proceed ....")
 
@@ -53,9 +66,6 @@ class PDACSummarizer(GridRunnable):
             num_selects=num_selects,
             keywords=["유형", "sample_id"],
         )
-
-        num_tries = optional(num_tries, 5)
-        recovery_time = optional(recovery_time, 2)
 
         self.result_df = sample_df.apply(
             self._summarize_foreach,
@@ -77,7 +87,7 @@ class PDACSummarizer(GridRunnable):
                           count: Callable[..., Iterator[int]],
                           total: int,
                           num_tries: int,
-                          recovery_time: int
+                          recovery_time: float
                          ) -> pd.Series:
         content = field["본문"]
 

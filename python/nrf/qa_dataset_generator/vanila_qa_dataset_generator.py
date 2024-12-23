@@ -50,7 +50,7 @@ class VanilaQADatasetGenerator(QADatasetGenerator):
                               ) -> Runnable:
         self.INFO(f"{self.header} MAIN CHAIN prepared ....")
 
-        prompt_args = load_chatprompt(self.content_dir / generate_prompt)
+        prompt_args, *_ = load_chatprompt(self.content_dir / generate_prompt)
         prompt = ChatPromptTemplate(**prompt_args)
 
         chain = (

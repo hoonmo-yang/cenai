@@ -1,10 +1,11 @@
-from typing import Callable, Iterator, Optional, Sequence
+from typing import Callable, Iterator, Sequence
 
 import itertools
 import pandas as pd
 import re
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
+from langchain_core.runnables.utils import Output
 
 from cenai_core import Timer
 
@@ -87,14 +88,24 @@ class QADatasetGenerator(GridRunnable):
             max_tokens,
         ]
 
-    def run(self, **directive) -> None:
-        self._generate_qa_dataset(**directive)
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               **kwargs) -> Iterator[Output]:
+        return iter([])
+
+    def invoke(self, **directive) -> None:
+        num_tries = directive.get("num_tries", 10)
+        recovery_time = directive.get("recovery_time", 0.5)
+
+        self._generate_qa_dataset(
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        )
 
     def _generate_qa_dataset(
             self,
-            num_tries: Optional[int] = None,
-            recovery_time: Optional[int] = None,
-            **kwargs
+            num_tries: int,
+            recovery_time: float
             ) -> None:
 
         self.INFO(f"{self.header} QA-DATASET GENERATE proceed ....")
@@ -176,7 +187,7 @@ class QADatasetGenerator(GridRunnable):
         count: Callable[..., Iterator[int]],
         total: int,
         num_tries: int,
-        recovery_time: int,
+        recovery_time: float,
     ) -> pd.Series:
 
         num_per_chunk = field.num_per_chunk

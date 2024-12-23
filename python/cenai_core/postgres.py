@@ -65,7 +65,7 @@ class Postgres(Logger):
     def connect(self) -> psycopg2.extensions.connection:
         self.INFO(
             f"host: {self._host} "
-            f"port: {self._port}"
+            f"port: {self._port} "
             f"user: {self._user} "
             f"password: {self._password[0:3]}* "
             f"db: {self._db} "

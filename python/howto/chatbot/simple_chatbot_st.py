@@ -1,6 +1,6 @@
 import streamlit as st
 
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from cenai_core import load_dotenv

@@ -27,11 +27,6 @@ export:
     extension:
     - .csv
 
-  document:
-    enable: false
-    keywords:
-    extension:
-
 models:
 - [hcx-003]
 

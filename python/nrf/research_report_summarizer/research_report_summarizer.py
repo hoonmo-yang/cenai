@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterator, Sequence
 
 import itertools
 import json
@@ -10,11 +10,12 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import Runnable
+from langchain_core.runnables.utils import Output
 
 from cenai_core import Timer
 
 from cenai_core.dataman import (
-    load_json_yaml, optional, pad_list, Q, QQ, Struct
+    load_json_yaml, pad_list, Q, QQ, Struct
 )
 
 from cenai_core.grid import GridRunnable
@@ -199,20 +200,27 @@ class ResearchReportSummarizer(GridRunnable):
             "summary": layout["summary_template"],
         })
 
-    def run(self, **directive) -> None:
-        self._summarize(**directive)
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               **kwargs) -> Iterator[Output]:
+        return iter([])
+
+    def invoke(self, **directive) -> None:
+        num_tries = directive.get("num_tries", 10)
+        recovery_time = directive.get("recovery_time", 0.5)
+
+        self._summarize(
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        )
 
     def _summarize(
             self,
-            num_tries: Optional[int] = None,
-            recovery_time: Optional[int] = None,
-            **kwargs
+            num_tries: int,
+            recovery_time: float
             ) -> None:
 
         self.INFO(f"{self.header} REPORT SUMMARY proceed ....")
-
-        num_tries = optional(num_tries, 5)
-        recovery_time = optional(recovery_time, 0.5)
 
         report_df = self._split_reports_by_section()
 
@@ -472,7 +480,7 @@ class ResearchReportSummarizer(GridRunnable):
     def _summarize_reports(self,
                            report_df: pd.DataFrame,
                            num_tries: int,
-                           recovery_time: int
+                           recovery_time: float
                            ) -> pd.DataFrame:
 
         self.INFO(f"{self.header} REPORT SUMMARIZATION proceed ....")
@@ -498,7 +506,7 @@ class ResearchReportSummarizer(GridRunnable):
                                   count: Callable[..., Iterator[int]],
                                   total: int,
                                   num_tries: int,
-                                  recovery_time: int
+                                  recovery_time: float
                                   ) -> pd.Series:
         file_ = report_df.name
         total2 = report_df.groupby(["item", "title"], sort=False).size().shape[0]
@@ -541,7 +549,7 @@ class ResearchReportSummarizer(GridRunnable):
             count: Callable[..., Iterator[int]],
             total: int,
             num_tries: int,
-            recovery_time: int
+            recovery_time: float
         ) -> str | list[list[str]]:
 
         item, title = content.name
@@ -604,7 +612,7 @@ class ResearchReportSummarizer(GridRunnable):
             self,
             report_df: pd.DataFrame,
             num_tries: int,
-            recovery_time: int
+            recovery_time: float
         ) -> pd.DataFrame:
 
         self.INFO(f"{self.header} REPORT SUMMARY EXTRACTION proceed ....")
@@ -629,7 +637,7 @@ class ResearchReportSummarizer(GridRunnable):
             count: Callable[..., Iterator[int]],
             total: int,
             num_tries: int,
-            recovery_time: int
+            recovery_time: float
         ) -> pd.Series:
 
         file_ = report_df.name
@@ -709,7 +717,7 @@ class ResearchReportSummarizer(GridRunnable):
     def _extract_report_headers(self,
                                 report_df: pd.DataFrame,
                                 num_tries: int,
-                                recovery_time: int
+                                recovery_time: float
                                 ) -> pd.DataFrame:
         self.INFO(f"{self.header} REPORT HEADER EXTRACTION proceed ....")
 
@@ -733,7 +741,7 @@ class ResearchReportSummarizer(GridRunnable):
             count: Callable[..., Iterator[int]],
             total: int,
             num_tries: int,
-            recovery_time: int
+            recovery_time: float
         ) -> pd.Series:
 
         file_ = report_df.name
@@ -799,7 +807,7 @@ class ResearchReportSummarizer(GridRunnable):
     def _calculate_similarity(self,
                               report_df: pd.DataFrame,
                               num_tries: int,
-                              recovery_time: int
+                              recovery_time: float
                               ) -> pd.DataFrame:
         self.INFO(f"{self.header} REPORT SIMILARITY proceed ....")
 
@@ -832,7 +840,7 @@ class ResearchReportSummarizer(GridRunnable):
                                       count: Callable[..., Iterator[int]],
                                       total: int,
                                       num_tries: int,
-                                      recovery_time: int
+                                      recovery_time: float
                                       ) -> pd.Series:
         file_ = report.file
 

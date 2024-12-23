@@ -1,6 +1,7 @@
 from typing import Any, Optional, Sequence
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from itertools import product
 import pandas as pd
 from pathlib import Path
@@ -9,6 +10,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables.utils import Output
 
 from cenai_core.dataman import (
     concat_texts, generate_checksum, load_json_yaml, optional, Q, Struct
@@ -190,8 +192,14 @@ class GridRunnable(Logger, ABC):
         return concat_texts(documents, "page_content", "\n\n")
 
     @abstractmethod
-    def run(self, **directive) -> None:
+    def invoke(self, **kwargs) -> None:
         pass
+
+    @abstractmethod
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               **kwargs) -> Iterator[Output]:
+        return iter([])
 
     @property
     def corpus_dir(self) -> Path:

@@ -1,9 +1,11 @@
-from typing import Callable, Iterator, Optional, Sequence
+from typing import Callable, Iterator, Sequence
 
 import itertools
 import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
+
+from langchain_core.runnables.utils import Output
 
 from cenai_core import cenai_path, Timer
 from cenai_core.dataman import load_text, Q, Struct
@@ -94,10 +96,10 @@ class PJSummarizer(GridRunnable):
 
             if table_name in ["patient"]:
                 data_df["nickname"] = [
-                    "김철수",
-                    "이원국",
-                    "최효준",
-                    "박영희",
+                    "김유신",
+                    "강감찬",
+                    "이순신",
+                    "신사임당",
                 ]
 
             with self.conn as conn, conn.cursor() as cursor:
@@ -129,14 +131,24 @@ class PJSummarizer(GridRunnable):
                         f"for {Q(table_name)} table: {len(recs)}"
                     )
 
-    def run(self, **directive) -> None:
-        self._summarize(**directive)
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               **kwargs) -> Iterator[Output]:
+        return iter([])
+
+    def invoke(self, **directive) -> None:
+        num_tries=directive.get("num_tries", 10)
+        recovery_time=directive.get("recovery_time", 0.5)
+
+        self._summarize(
+            num_tries=num_tries,
+            recovery_time=recovery_time,
+        )
 
     def _summarize(
             self,
-            num_tries: Optional[int] = None,
-            recovery_time: Optional[int] = None,
-            **kwargs
+            num_tries: int,
+            recovery_time: float
     ) -> None:
         self.INFO(f"{self.header} SUMMARIZATION proceed ....")
 
@@ -157,7 +169,7 @@ class PJSummarizer(GridRunnable):
                            count: Callable[..., Iterator[int]],
                            total: int,
                            num_tries: int,
-                           recovery_time: int
+                           recovery_time: float
                            ) -> pd.Series:
 
         question, *_ = load_text(

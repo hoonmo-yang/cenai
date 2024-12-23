@@ -1,36 +1,29 @@
 from typing import Sequence
 
-import ast
 from operator import itemgetter
-import pandas as pd
 
 from langchain_community.agent_toolkits.sql.base import create_sql_agent
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langchain_community.utilities import SQLDatabase 
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import Runnable
-from langchain.output_parsers import PydanticOutputParser
 
 from cenai_core.dataman import Struct
-from cenai_core.langchain_helper import load_prompt, AgentExecutorRunnable
+from cenai_core.langchain_helper import load_chatprompt, AgentExecutorRunnable
 
-from pj_summarizer import PJSummarizer
-from pj_template import PJSummaryTemplate
+from pj_chatbot import PJChatbot
 
 
-class VanilaSummarizer(PJSummarizer):
+class VanilaChatbot(PJChatbot):
     def __init__(self,
                  models: Sequence[str],
                  agent_prompt: str,
-                 summarize_prompt: str,
-                 question: str,
                  metadata: Struct
-                ):
+                 ):
 
         case_suffix = "_".join([
             agent_prompt.split(".")[0],
-            summarize_prompt.split(".")[0],
-            question.split(".")[0],
         ])
 
         super().__init__(
@@ -41,37 +34,23 @@ class VanilaSummarizer(PJSummarizer):
 
         self.INFO(f"{self.header} prepared ....")
 
-        self.question = question
-
         self.metadata_df.loc[
             0,
             [
                 "agent_prompt",
-                "summarize_prompt",
-                "question",
             ]
         ] = [
             agent_prompt,
-            summarize_prompt,
-            question,
         ]
 
         db = SQLDatabase.from_uri(self.cenai_db.url)
-
-        self.question = question
-        self.resch_pat_ids = self._get_resch_pat_ids(db)
 
         agent_chain = self._build_agent_chain(db)
 
         self.main_chain = self._build_main_chain(
             agent_chain=agent_chain,
             agent_prompt=agent_prompt,
-            summarize_prompt=summarize_prompt,
         )
-
-    def _get_resch_pat_ids(self, db: SQLDatabase) -> pd.Series:
-        ids = db.run("SELECT resch_pat_id FROM patient")
-        return pd.Series([id[0] for id in ast.literal_eval(ids)])
 
     def _build_agent_chain(self, db: SQLDatabase) -> Runnable:
         self.INFO(f"{self.header} AGENT CHAIN prepared ....")
@@ -89,40 +68,23 @@ class VanilaSummarizer(PJSummarizer):
         self.INFO(f"{self.header} AGENT CHAIN prepared DONE")
         return agent_chain
 
+
     def _build_main_chain(self, 
                           agent_chain: Runnable,
                           agent_prompt: str,
-                          summarize_prompt: str
                           ) -> Runnable:
         self.INFO(f"{self.header} MAIN CHAIN prepared ....")
 
-        agent_args, *_ = load_prompt(self.content_dir / agent_prompt)
-        agent_prompt = PromptTemplate(**agent_args)
-
-        parser = PydanticOutputParser(
-            pydantic_object=PJSummaryTemplate,
-        )
-
-        summarize_args, partials = load_prompt(
-            self.content_dir / summarize_prompt
-        )
-
-        full_summarize_args = summarize_args | {
-            "partial_variables": {
-                partials[0]: parser.get_format_instructions(),
-            },
-        }
-
-        summarize_prompt = PromptTemplate(**full_summarize_args)
+        agent_args, *_ = load_chatprompt(self.content_dir / agent_prompt)
+        agent_prompt = ChatPromptTemplate(**agent_args)
 
         chain = (
             agent_prompt |
             agent_chain | {
                 "content": itemgetter("output")
             } |
-            summarize_prompt |
             self.model[0] |
-            parser
+            StrOutputParser()
         )
 
         self.INFO(f"{self.header} MAIN CHAIN prepared DONE")
