@@ -18,15 +18,7 @@ class PDACSummarizationStreamlit(Logger):
     profile_dir = cenai_path("python/amc/pdac_summarizer/profile")
     profile_file = profile_dir / "amc-poc-otf.yaml"
 
-    runner = GridRunner()
-
     def __init__(self):
-        st.set_page_config(
-            layout="wide",
-        )
-
-        self._profile = load_json_yaml(self.profile_file)
-
         if "result" not in st.session_state:
             st.session_state.result = {
                 "select_sample": [],
@@ -34,9 +26,16 @@ class PDACSummarizationStreamlit(Logger):
                 "html": [],
             }
 
-        self._run_button = None
+        if "runner" not in st.session_state:
+            st.session_state.runner = GridRunner()
 
-    def _change_parameter_values(self):
+        self._profile = self._change_parameter_values()
+        self._activate_runner(self.profile)
+
+    @classmethod
+    def _change_parameter_values(cls) -> dict[str, Any]:
+        profile = load_json_yaml(cls.profile_file)
+
         with st.sidebar:
             st.subheader("파라미터 세팅")
 
@@ -66,26 +65,98 @@ class PDACSummarizationStreamlit(Logger):
                 ["pdac-report4.json",]
             )
 
-            self._run_button = st.button("Run", use_container_width=True)
-
-            self._document_button = st.button(
-                "Generate documents", use_container_width=True
-            )
-
         label = f"{datetime.now().strftime("%Y-%m-%d")}"
 
-        self._profile["metadata"]["label"] = label
-        self._profile["directive"]["num_selects"] = num_selects
-        self._profile["models"] = [[model]]
-        self._profile["corpora"][0]["stem"] = [Path(pdac_report).stem]
-        self._profile["corpora"][0]["extension"] = [Path(pdac_report).suffix]
-        self._profile["corpora"][0]["seeds"] = [seeds]
+        profile["metadata"]["label"] = label
+        profile["directive"]["num_selects"] = num_selects
+        profile["models"] = [[model]]
+        profile["corpora"][0]["stem"] = [Path(pdac_report).stem]
+        profile["corpora"][0]["extension"] = [Path(pdac_report).suffix]
+        profile["corpora"][0]["seeds"] = [seeds]
+
+        return profile
+
+    @staticmethod
+    @st.cache_resource
+    def _activate_runner(profile: dict[str, Any]) -> None:
+        st.session_state.runner.update(profile)
+        st.session_state.runner.activate()
+
+    def invoke(self):
+        with st.sidebar:
+            if st.button("Run", use_container_width=True):
+                st.session_state.result = self._get_result(self.profile)
+
+            result = st.session_state.result
+
+            if st.button(
+                "Generate Documents", use_container_width=True
+            ) and result["select_sample"]:
+
+                data, file_name = self._generate_documents(self.profile)
+
+                st.download_button(
+                    label="Download ZIP file",
+                    data=data,
+                    file_name=file_name,
+                    mime="application/zip",
+                    use_container_width=True,
+                )
+
+            if st.button("Clear Cache", use_container_width=True):
+                st.cache_data.clear()
+                st.success("Cache ias been cleared")
+
+            st.subheader("샘플 선택")
+
+            choice = st.selectbox(
+                "Choose a report:",
+                range(len(result["select_sample"])),
+                format_func=lambda i: result["select_sample"][i]
+            )
+
+            if result["content"]:
+                st.subheader("본문")
+
+                st.markdown(
+                    """
+                    <style>
+                    .custom-text-box {
+                        border: 1px solid #ccc;
+                        border-radius: 8px;
+                        padding: 15px;
+                        background-color: #f9f9f9;
+                        font-size: 16px;
+                        line-height: 1.6;
+                        color: #333;
+                        overflow-wrap: break-word;
+                        text-align: justify;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                st.markdown(
+                    f"""<div class="custom-text-box">
+                    {result['content'][choice]}</div>""",
+                    unsafe_allow_html=True
+                )
+
+        html = (
+            result["html"][choice] if result["html"] else
+            get_empty_html()
+        )
+
+        st.subheader("영상 판독문 요약")
+        components.html(html, height=4800)
 
     @staticmethod
     @st.cache_data
     def _get_result(profile: dict[str, Any]) -> dict[str, Any]:
-        runner = PDACSummarizationStreamlit.runner
+        runner = st.session_state.runner
         runner.update(profile)
+
         result_df = runner.yield_result()
 
         result_df["select_sample"] = result_df.apply(
@@ -104,7 +175,7 @@ class PDACSummarizationStreamlit(Logger):
     @staticmethod
     @st.cache_data
     def _generate_documents(profile: dict[str, Any]) -> tuple[BytesIO, str]:
-        runner = PDACSummarizationStreamlit.runner
+        runner = st.session_state.runner
         runner.update(profile)
 
         export_dir, extensions = runner.export_documents()
@@ -122,79 +193,9 @@ class PDACSummarizationStreamlit(Logger):
 
         return [zip_buffer, f"{runner.suite_id}.zip"]
 
-    def invoke(self):
-        self._change_parameter_values()
-
-        if self._run_button:
-            st.session_state.result = self._get_result(self._profile)
-            self._profile["directive"]["force"] = False
-            self._profile["directive"]["truncate"] = False
-
-        result = st.session_state.result
-
-        with st.sidebar:
-            if self._document_button and result["select_sample"]:
-                data, file_name = self._generate_documents(self._profile)
-                st.download_button(
-                    label="Download ZIP file",
-                    data=data,
-                    file_name=file_name,
-                    mime="application/zip",
-                    use_container_width=True,
-                )
-
-            if st.button("Clear Cache", use_container_width=True):
-                st.cache_data.clear()
-                self._profile["directive"]["force"] = True
-                self._profile["directive"]["truncate"] = True
-
-                st.success("Cache ias been cleared")
-
-            st.subheader("샘플 선택")
-
-            choice = st.selectbox(
-                "Choose a report:",
-                range(len(result["select_sample"])),
-                format_func=lambda i: result["select_sample"][i]
-            )
-
-            if result["content"]:
-                st.subheader("본문")
-
-                st.markdown(
-                """
-                <style>
-                .custom-text-box {
-                    border: 1px solid #ccc;
-                    border-radius: 8px;
-                    padding: 15px;
-                    background-color: #f9f9f9;
-                    font-size: 16px;
-                    line-height: 1.6;
-                    color: #333;
-                    overflow-wrap: break-word;
-                    text-align: justify;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-                )
-
-                st.markdown(
-                    f"""<div class="custom-text-box">
-                        {result['content'][choice]}</div>""",
-                    unsafe_allow_html=True
-                )
-
-        if result["html"]:
-            html = result["html"][choice]
-
-        else:
-            html = get_empty_html()
-
-        st.subheader("영상 판독문 요약")
-        components.html(html, height=4800)
-
+    @property
+    def profile(self) -> dict[str, Any]:
+        return self._profile
 
 def main():
     pdac_summarizer = PDACSummarizationStreamlit()

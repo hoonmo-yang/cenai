@@ -138,6 +138,7 @@ class GridCLI(Logger):
 
             runner = self._runner(path)
             
+            runner.activate()
             runner.invoke()
             runner.export_tables()
             runner.export_documents()

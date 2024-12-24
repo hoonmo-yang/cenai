@@ -16,6 +16,11 @@ h1, h2 {
     margin-bottom: 5px;
     width: 90%;
 }
+.section3 {
+    font-size: 90%;
+    margin-bottom: 5px;
+    width: 90%;
+}
 
 table {
 border-collapse: collapse;
@@ -52,7 +57,7 @@ th {
 }
 
 .section2 td:nth-child(2) {
-    width: 5%;
+    width: 10%;
 }
 
 .section3 td:nth-child(1) {

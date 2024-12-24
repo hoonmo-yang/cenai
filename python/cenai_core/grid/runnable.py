@@ -1,7 +1,6 @@
-from typing import Any, Optional, Sequence
+from typing import Any, Iterator, Optional, Sequence
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
 from itertools import product
 import pandas as pd
 from pathlib import Path

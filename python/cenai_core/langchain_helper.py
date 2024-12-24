@@ -155,13 +155,22 @@ def load_prompt(
 def load_chatprompt(prompt_file: Path) -> tuple[dict[str, Any], list[str]]:
     parameter = load_json_yaml(prompt_file)
 
-    keys = [
-        "input_variables",
-        "messages",
+    messages = [
+        (message["role"], message["content"])
+        if "role" in message else
+
+        ("placeholder", message["placeholder"])
+        if "placeholder" in message else
+
+        ("human", message)
+        for message in parameter["messages"]
     ]
 
     return (
-        {key: parameter[key] for key in keys},
+        {
+            "input_variables": parameter.get("input_variables", []),
+            "messages": messages,
+        },
         parameter.get("partial_variables", [])
     )
 

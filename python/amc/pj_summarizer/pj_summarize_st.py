@@ -16,23 +16,22 @@ class PJSummarizationStreamlit(Logger):
     profile_dir = cenai_path("python/amc/pj_summarizer/profile")
     profile_file = profile_dir / "amc-poc-otf.yaml"
 
-    runner = GridRunner()
-
     def __init__(self):
-        st.set_page_config(
-            layout="wide",
-        )
-
         if "result" not in st.session_state:
             st.session_state.result = {
                 "resch_pat_id": [],
                 "html": [],
             }
 
-        self._change_parameter_values()
+        if "runner" not in st.session_state:
+            st.session_state.runner = GridRunner()
 
-    def _change_parameter_values(self):
-        self._profile = load_json_yaml(self.profile_file)
+        self._profile = self._change_parameter_values()
+        self._activate_runner(self.profile)
+
+    @classmethod
+    def _change_parameter_values(cls) -> dict[str, Any]:
+        profile = load_json_yaml(cls.profile_file)
 
         with st.sidebar:
             st.subheader("파라미터 세팅")
@@ -42,22 +41,66 @@ class PJSummarizationStreamlit(Logger):
                 ["gpt-4o", "gpt-3.5-turbo",]
             )
 
-            self._run_button = st.button("Run", use_container_width=True)
-
-            self._document_button = st.button(
-                "Generate documents", use_container_width=True
-            )
-
         label = f"{datetime.now().strftime("%Y-%m-%d")}"
 
-        self._profile["metadata"]["label"] = label
-        self._profile["models"] = [[model]]
+        profile["metadata"]["label"] = label
+        profile["models"] = [[model]]
+
+        return profile
+
+    @staticmethod
+    @st.cache_resource
+    def _activate_runner(profile: dict[str, Any]) -> None:
+        st.session_state.runner.update(profile)
+        st.session_state.runner.activate()
+
+    def invoke(self):
+        with st.sidebar:
+            if st.button("Run", use_container_width=True):
+                st.session_state.result = self._get_result(self.profile)
+
+            result = st.session_state.result
+
+            if st.button(
+                "Generate Documents", use_container_width=True
+            ) and result["resch_pat_id"]:
+
+                data, file_name = self._generate_documents(self.profile)
+
+                st.download_button(
+                    label="Download ZIP file",
+                    data=data,
+                    file_name=file_name,
+                    mime="application/zip",
+                    use_container_width=True,
+                )
+
+            if st.button("Clear Cache", use_container_width=True):
+                st.cache_data.clear()
+                st.success("Cache Cleared")
+
+            st.subheader("파일 선택")
+
+            choice = st.selectbox(
+                "Choose a Patient ID:",
+                range(len(result["resch_pat_id"])),
+                format_func=lambda i: result["resch_pat_id"][i]
+            )
+
+        html = (
+            result["html"][choice] if result["resch_pat_id"] else
+            get_empty_html()
+        )
+
+        st.subheader("환자 여정 요약")
+        components.html(html, height=4800)
 
     @staticmethod
     @st.cache_data
     def _get_result(profile: dict[str, Any]) -> dict[str, Any]:
-        runner = PJSummarizationStreamlit.runner
+        runner = st.session_state.runner
         runner.update(profile)
+
         result_df = runner.yield_result()
 
         result = {
@@ -78,7 +121,7 @@ class PJSummarizationStreamlit(Logger):
     @staticmethod
     @st.cache_data
     def _generate_documents(profile: dict[str, Any]) -> tuple[BytesIO, str]:
-        runner = PJSummarizationStreamlit.runner
+        runner = st.session_state.runner
         runner.update(profile)
 
         export_dir, extensions = runner.export_documents()
@@ -96,48 +139,9 @@ class PJSummarizationStreamlit(Logger):
 
         return [zip_buffer, f"{runner.suite_id}.zip"]
 
-    def invoke(self):
-        if self._run_button:
-            st.session_state.result = self._get_result(self._profile)
-            self._profile["directive"]["force"] = False
-            self._profile["directive"]["truncate"] = False
-
-        result = st.session_state.result
-
-        with st.sidebar:
-            if self._document_button and result["resch_pat_id"]:
-                data, file_name = self._generate_documents(self._profile)
-                st.download_button(
-                    label="Download ZIP file",
-                    data=data,
-                    file_name=file_name,
-                    mime="application/zip",
-                    use_container_width=True,
-                )
-
-            if st.button("Clear Cache", use_container_width=True):
-                st.cache_data.clear()
-                self._profile["directive"]["force"] = True
-                self._profile["directive"]["truncate"] = True
-
-                st.success("Cache ias been cleared")
-
-            st.subheader("파일 선택")
-
-            choice = st.selectbox(
-                "Choose a Patient ID:",
-                range(len(result["resch_pat_id"])),
-                format_func=lambda i: result["resch_pat_id"][i]
-            )
-
-        if result["resch_pat_id"]:
-            html = result["html"][choice]
-
-        else:
-            html = get_empty_html()
-
-        st.subheader("환자 여정 요약")
-        components.html(html, height=4800)
+    @property
+    def profile(self) -> dict[str, Any]:
+        return self._profile
 
 
 def main():

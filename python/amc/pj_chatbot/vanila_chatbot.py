@@ -80,11 +80,8 @@ class VanilaChatbot(PJChatbot):
 
         chain = (
             agent_prompt |
-            agent_chain | {
-                "content": itemgetter("output")
-            } |
-            self.model[0] |
-            StrOutputParser()
+            agent_chain |
+            itemgetter("output")
         )
 
         self.INFO(f"{self.header} MAIN CHAIN prepared DONE")

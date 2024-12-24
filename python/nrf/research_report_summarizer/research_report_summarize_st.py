@@ -19,14 +19,9 @@ class ResearchResportSummarizationStreamlit(Logger):
     profile_file = profile_dir / "nrf-poc-otf.yaml"
     corpus_dir = cenai_path("data/nrf/research-report-summarizer/corpus")
 
-    runner = GridRunner()
-
     def __init__(self):
-        st.set_page_config(
-            layout="wide",
-        )
-
-        self._profile = load_json_yaml(self.profile_file)
+        if "runner" not in st.session_state:
+            st.session_state.runner = GridRunner()
 
         if "result" not in st.session_state:
             st.session_state.result = {
@@ -34,20 +29,13 @@ class ResearchResportSummarizationStreamlit(Logger):
                 "html": [],
             }
 
-        self._run_button = None
+        self._upload_files()
 
-    def _get_dirs(self, name_only: bool) -> list[Path | str]:
-        dirs = [
-            dir_ for dir_ in self.corpus_dir.glob("*")
-            if dir_.is_dir()
-        ]
+        self._profile = self._change_parameter_values()
+        self._activate_runner(self.profile)
 
-        if name_only:
-            dirs = [dir_.name for dir_ in dirs]
-
-        return dirs
-
-    def _upload_files(self):
+    @classmethod
+    def _upload_files(cls):
         with st.sidebar:
             st.subheader("파일 관리")
 
@@ -71,7 +59,7 @@ class ResearchResportSummarizationStreamlit(Logger):
                     st.error("Set folder to upload before file upload")
 
                 else:
-                    upload_dir = self.corpus_dir / prefix
+                    upload_dir = cls.corpus_dir / prefix
                     if upload_dir.is_dir():
                         rmtree(upload_dir)
 
@@ -85,15 +73,18 @@ class ResearchResportSummarizationStreamlit(Logger):
 
             dirs = st.multiselect(
                 " Select folders to delete:",
-                self._get_dirs(True),
+                cls._get_dirs(True),
             )
 
             if st.button("Delete folders", use_container_width=True):
                 for dir_ in dirs:
-                    rmtree(self.corpus_dir / dir_)
+                    rmtree(cls.corpus_dir / dir_)
                     st.success(f"{Q(dir_)} deleted")
 
-    def _change_parameter_values(self):
+    @classmethod
+    def _change_parameter_values(cls) -> dict[str, Any]:
+        profile = load_json_yaml(cls.profile_file)
+
         with st.sidebar:
             st.subheader("파라미터 세팅")
 
@@ -108,30 +99,86 @@ class ResearchResportSummarizationStreamlit(Logger):
             )
 
             prefix = st.selectbox(
-                "Select input folder:", self._get_dirs(True)
-            )
-
-            self._run_button = st.button("Run", use_container_width=True)
-
-            self._document_button = st.button(
-                "Generate documents", use_container_width=True
+                "Select input folder:", cls._get_dirs(True)
             )
 
         label = f"{datetime.now().strftime("%Y-%m-%d")}_{prefix}"
 
-        self._profile["metadata"]["label"] = label
-        self._profile["models"] = [[model, "gpt-4o"]]
-        self._profile["corpora"][0]["prefix"] = [prefix]
-        self._profile["cases"][0]["module"] = [module]
+        profile["metadata"]["label"] = label
+        profile["models"] = [[model, "gpt-4o"]]
+        profile["corpora"][0]["prefix"] = [prefix]
+        profile["cases"][0]["module"] = [module]
 
         if module == "map_reduce_summarizer":
-            self._profile["cases"][0]["parameter"].append("num_map_reduce_tokens")
+            profile["cases"][0]["parameter"].append("num_map_reduce_tokens")
+
+        return profile
+
+    @classmethod
+    def _get_dirs(cls, name_only: bool) -> list[Path | str]:
+        dirs = [
+            dir_ for dir_ in cls.corpus_dir.glob("*")
+            if dir_.is_dir()
+        ]
+
+        if name_only:
+            dirs = [dir_.name for dir_ in dirs]
+
+        return dirs
+
+    @staticmethod
+    @st.cache_resource
+    def _activate_runner(profile: dict[str, Any]) -> None:
+        st.session_state.runner.update(profile)
+        st.session_state.runner.activate()
+
+    def invoke(self) -> None:
+        with st.sidebar:
+            if st.button("Run", use_container_width=True):
+                st.session_state.result = self._get_result(self.profile)
+
+            result = st.session_state.result
+
+            if st.button(
+                "Generate Documents", use_container_width=True
+                ) and result["select_file"]:
+            
+                data, file_name = self._generate_documents(self.profile)
+
+                st.download_button(
+                    label="Download ZIP file",
+                    data=data,
+                    file_name=file_name,
+                    mime="application/zip",
+                    use_container_width=True,
+                )
+
+            if st.button("Clear Cache", use_container_width=True):
+                st.cache_data.clear()
+                st.success("Cache ias been cleared")
+
+            st.subheader("파일 선택")
+
+            choice = st.selectbox(
+                "Choose a file:",
+                range(len(result["select_file"])),
+                format_func=lambda i: result["select_file"][i]
+            )
+
+        html = (
+            result["html"][choice] if result["select_file"] else
+            get_empty_html()
+        )
+
+        st.subheader("요약 비교")
+        components.html(html, height=4800)
 
     @staticmethod
     @st.cache_data
     def _get_result(profile: dict[str, Any]) -> dict[str, Any]:
-        runner = ResearchResportSummarizationStreamlit.runner
+        runner = st.session_state.runner
         runner.update(profile)
+
         result_df = runner.yield_result()
 
         result_df["select_file"] = result_df.file.apply(
@@ -151,7 +198,7 @@ class ResearchResportSummarizationStreamlit(Logger):
     @staticmethod
     @st.cache_data
     def _generate_documents(profile: dict[str, Any]) -> tuple[BytesIO, str]:
-        runner = ResearchResportSummarizationStreamlit.runner
+        runner = st.session_state.runner
         runner.update(profile)
 
         export_dir, extensions = runner.export_documents()
@@ -169,51 +216,9 @@ class ResearchResportSummarizationStreamlit(Logger):
 
         return [zip_buffer, f"{runner.suite_id}.zip"]
 
-    def invoke(self):
-        self._upload_files()
-        self._change_parameter_values()
-
-        if self._run_button:
-            st.session_state.result = self._get_result(self._profile)
-            self._profile["directive"]["force"] = False
-            self._profile["directive"]["truncate"] = False
-
-        result = st.session_state.result
-
-        with st.sidebar:
-            if self._document_button and result["select_file"]:
-                data, file_name = self._generate_documents(self._profile)
-                st.download_button(
-                    label="Download ZIP file",
-                    data=data,
-                    file_name=file_name,
-                    mime="application/zip",
-                    use_container_width=True,
-                )
-
-            if st.button("Clear Cache", use_container_width=True):
-                st.cache_data.clear()
-                self._profile["directive"]["force"] = True
-                self._profile["directive"]["truncate"] = True
-
-                st.success("Cache ias been cleared")
-
-            st.subheader("파일 선택")
-
-            choice = st.selectbox(
-                "Choose a file:",
-                range(len(result["select_file"])),
-                format_func=lambda i: result["select_file"][i]
-            )
-
-        if result["select_file"]:
-            html = result["html"][choice]
-
-        else:
-            html = get_empty_html()
-
-        st.subheader("요약 비교")
-        components.html(html, height=4800)
+    @property
+    def profile(self) -> dict[str, Any]:
+        return self._profile
 
 
 def main():

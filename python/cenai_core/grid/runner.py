@@ -1,5 +1,6 @@
 from typing import Any, Callable, Iterator, Optional, Sequence
 
+from abc import ABC, abstractmethod
 import copy
 import importlib
 from itertools import product
@@ -22,6 +23,47 @@ from cenai_core.grid.runnable import GridRunnable
 from cenai_core.render import html_to_pdf, html_to_docx
 from cenai_core.system import cenai_path, load_dotenv
 
+
+class BaseRunner(Logger, ABC):
+    logger_name = "cenai.system"
+
+    def __init__(self):
+        super().__init__()
+
+    @abstractmethod
+    def activate(self) -> None:
+        pass
+
+    @abstractmethod
+    def invoke(self, indices: int | Sequence[int] | range = -1) -> None:
+        pass
+
+    @abstractmethod
+    def yield_result(self,
+                     indices: int | Sequence[int] | range = -1
+                     ) -> pd.DataFrame:
+        return pd.DataFrame()
+
+    @abstractmethod
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               index: int = 0
+               ) -> Iterator[Output]:
+        return []
+
+    @abstractmethod
+    def generate_htmls(self) -> pd.DataFrame:
+        return pd.DataFrame()
+
+    @abstractmethod
+    def export_tables(self) -> tuple[Path, list[str]]:
+        return Path(), []
+
+    @abstractmethod
+    def export_documents(self) -> None:
+        return Path(), []
+
+
 class Gridsuite(BaseModel):
     prefix: str = Field(description="prefix of gridsuite name")
     label: str = Field(description="label of grid suite")
@@ -38,27 +80,6 @@ class Gridsuite(BaseModel):
         return self.artifact_dir / self.prefix
 
 
-class BaseRunner(Logger):
-    logger_name = "cenai.system"
-
-    def __init__(self):
-        super().__init__()
-
-    def invoke(self) -> None:
-        pass
-
-    def stream(self,
-               messages: Sequence[dict[str, str] | tuple[str, str]]
-               ) -> list[Iterator[Output]]:
-        return []
-
-    def export_tables(self) -> tuple[Path, list[str]]:
-        return Path(), []
-
-    def export_documents(self) -> None:
-        return Path(), []
-
-
 class GridRunner(BaseRunner):
     version = "v1"
 
@@ -67,6 +88,8 @@ class GridRunner(BaseRunner):
 
     def __init__(self, profile: Optional[Path | dict[str, Any]] = None):
         super().__init__()
+
+        self._cases = []
 
         if profile is not None:
             self.update(profile)
@@ -91,6 +114,8 @@ class GridRunner(BaseRunner):
 
         self._source_corpus_dir = source_dir / "corpus"
         self._html_dir = source_dir / "html"
+
+        load_dotenv(self.recipe.directive.get("langsmith"))
 
     @classmethod
     def _load_gridsuite_recipe(
@@ -520,16 +545,12 @@ class GridRunner(BaseRunner):
             **case_args
         )
 
-    def stream(self,
-               messages: Sequence[dict[str, str] | tuple[str, str]]
-               ) -> list[Iterator[Output]]:
-        self.INFO(f"{self.header} proceed ....")
+    def activate(self) -> None:
+        self.INFO(f"{self.header} ACTIVATE ....")
+
+        self.cases.clear()
 
         all_corpus_args = self._prepare_corpora()
-
-        load_dotenv(self.recipe.directive.get("langsmith"))
-
-        streams = []
 
         for case in self.recipe.cases:
             for values in product(*case.values()):
@@ -541,46 +562,29 @@ class GridRunner(BaseRunner):
                         corpus_args=corpus_args,
                     )
 
-                    stream = instance.stream(
-                        messages=messages,
-                        **self.recipe.directive
-                    )
+                    self.cases.append(instance)
 
-                    streams.append(stream)
+        self.INFO(f"{self.header} ACTIVATE DONE")
 
-        self.INFO(f"{self.header} proceed DONE")
-        return streams
+    def invoke(self, indices: int | Sequence[int] | range = -1) -> None:
+        self.INFO(f"{self.header} INVOKE ....")
 
-    def yield_result(self) -> pd.DataFrame:
-        self.invoke()
-        return pd.DataFrame(self.generate_htmls())
+        cases = (
+             self.cases if indices == -1 else 
 
-    def invoke(self) -> None:
-        if not self.recipe.directive["force"] and self.data_json.is_file():
-            return
+            [self.cases[i] for i in indices]
+            if isinstance(indices, Sequence | range) else
 
-        self.INFO(f"{self.header} proceed ....")
-
-        all_corpus_args = self._prepare_corpora()
-
-        load_dotenv(self.recipe.directive.get("langsmith"))
+            [indices]
+        )
 
         try:
             self._truncate()
 
-            for case in self.recipe.cases:
-                for values in product(*case.values()):
-                    case_args = dict(zip(case.keys(), values))
-
-                    for corpus_args in all_corpus_args:
-                        instance = self.get_instance(
-                            case_args=dict(case_args),
-                            corpus_args=corpus_args,
-                        )
-
-                        instance.invoke(**self.recipe.directive)
-
-                        self._save(instance.result_df, instance.metadata_df)
+            for case in cases:
+                case.invoke(**self.recipe.directive)
+        
+                self._save(case.result_df, case.metadata_df)
 
         except Exception:
             self._restore(True)
@@ -588,7 +592,7 @@ class GridRunner(BaseRunner):
         else:
             self._restore(False)
 
-        self.INFO(f"{self.header} proceed DONE")
+        self.INFO(f"{self.header} INVOKE DONE")
 
     def _truncate(self) -> None:
         backup_file = self.data_json.with_suffix(".bak")
@@ -638,6 +642,46 @@ class GridRunner(BaseRunner):
         to_json(self.data_json, result_df, metadata_df)
 
         self.INFO(f"{self.header} DATA saved DONE")
+
+    def yield_result(self,
+                     indices: int | Sequence[int] | range = -1
+                     ) -> pd.DataFrame:
+        self.invoke(indices)
+
+        return pd.DataFrame(self.generate_htmls())
+
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               index: int = 0
+               ) -> Iterator[Output]:
+
+        self.INFO(f"{self.header} STREAM ....")
+
+        case_stream = self.cases[index].stream(
+            messages=self._convert_messages(messages),
+            **self.recipe.directive
+        )
+
+        self.INFO(f"{self.header} STREAM DONE")
+        return case_stream
+
+    @staticmethod
+    def _convert_messages(
+            messages: Sequence[dict[str, str] | tuple[str, str]]
+        ) -> Sequence[tuple[str, str]]:
+
+        convertee = [
+            (message["role"], message["content"])
+            if isinstance(message, dict) and "role" in message else
+
+            ("placeholder", message["placeholder"])
+            if isinstance(message, dict) and "placeholder" in message else
+
+            tuple(message)
+            for message in messages
+        ]
+
+        return convertee
 
     def export_tables(self) -> tuple[Path, list[str]]:
         self.INFO(f"{self.header} TABLE EXPORT proceed ....")
@@ -892,3 +936,6 @@ class GridRunner(BaseRunner):
     def data_json(self) -> Path:
         return self.datastore_dir / f"{self.suite_id}.json"
 
+    @property
+    def cases(self) -> list[GridRunnable]:
+        return self._cases

@@ -129,16 +129,19 @@ class PJChatbot(GridRunnable):
                         f"for {Q(table_name)} table: {len(recs)}"
                     )
 
-    def stream(self, messages: Sequence[dict[str, str] | tuple[str, str]]) -> Iterator[Output]:
+    def stream(self,
+               messages: Sequence[dict[str, str] | tuple[str, str]],
+               **kwargs) -> Iterator[Output]:
         return self._converse(messages)
 
     def _converse(self,
                   messages: Sequence[dict[str, str] | tuple[str, str]],
+
                   ) -> Iterator[Output]:
 
         self.INFO(f"{self.header} CONVERSATION proceed ....")
 
-        stream = self.main_chain({
+        stream = self.main_chain.stream({
             "messages": messages,
         })
 
