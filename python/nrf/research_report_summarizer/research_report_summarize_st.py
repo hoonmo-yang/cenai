@@ -20,9 +20,6 @@ class ResearchResportSummarizationStreamlit(Logger):
     corpus_dir = cenai_path("data/nrf/research-report-summarizer/corpus")
 
     def __init__(self):
-        if "runner" not in st.session_state:
-            st.session_state.runner = GridRunner()
-
         if "result" not in st.session_state:
             st.session_state.result = {
                 "select_file": [],
@@ -32,7 +29,7 @@ class ResearchResportSummarizationStreamlit(Logger):
         self._upload_files()
 
         self._profile = self._change_parameter_values()
-        self._activate_runner(self.profile)
+        st.session_state.runner = self._get_runner(self.profile)
 
     @classmethod
     def _upload_files(cls):
@@ -128,9 +125,10 @@ class ResearchResportSummarizationStreamlit(Logger):
 
     @staticmethod
     @st.cache_resource
-    def _activate_runner(profile: dict[str, Any]) -> None:
-        st.session_state.runner.update(profile)
-        st.session_state.runner.activate()
+    def _get_runner(profile: dict[str, Any]) -> GridRunner:
+        runner = GridRunner(profile)
+        runner.activate()
+        return runner
 
     def invoke(self) -> None:
         with st.sidebar:

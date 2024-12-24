@@ -26,11 +26,8 @@ class PDACSummarizationStreamlit(Logger):
                 "html": [],
             }
 
-        if "runner" not in st.session_state:
-            st.session_state.runner = GridRunner()
-
         self._profile = self._change_parameter_values()
-        self._activate_runner(self.profile)
+        st.session_state.runner = self._get_runner(self.profile)
 
     @classmethod
     def _change_parameter_values(cls) -> dict[str, Any]:
@@ -78,9 +75,10 @@ class PDACSummarizationStreamlit(Logger):
 
     @staticmethod
     @st.cache_resource
-    def _activate_runner(profile: dict[str, Any]) -> None:
-        st.session_state.runner.update(profile)
-        st.session_state.runner.activate()
+    def _get_runner(profile: dict[str, Any]) -> GridRunner:
+        runner = GridRunner(profile)
+        runner.activate()
+        return runner
 
     def invoke(self):
         with st.sidebar:
