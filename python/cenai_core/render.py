@@ -3,23 +3,24 @@ from typing import Sequence
 from bs4 import BeautifulSoup
 import docx
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+import io
+import pdfkit
 from pathlib import Path
-from weasyprint import HTML
+from PyPDF2 import PdfMerger
 
 
 def html_to_pdf(htmls: Sequence[str],
                 pdf_file: Path
                 ) -> None:
 
-    pdfs = [HTML(string=html).render() for html in htmls]
+    merger = PdfMerger()
 
-    pages = []
-    for pdf in pdfs:
-        pages.extend(pdf.pages)
+    for html in htmls:
+        pdf_buffer = io.BytesIO(pdfkit.from_string(html, False))
+        merger.append(pdf_buffer)
 
-    document = pdfs[0].copy()
-    document.pages = pages
-    document.write_pdf(str(pdf_file))
+    with pdf_file.open("wb") as fout:
+        merger.write(fout)
 
 
 def html_to_docx(htmls: Sequence[str],
@@ -34,7 +35,7 @@ def html_to_docx(htmls: Sequence[str],
             if element.name == "h2":
                 heading = document.add_heading(level=2)
                 heading.text = element.get_text(strip=True)
-                heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                heading.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
             elif element.name == "table":
                 _add_table_to_document(document, str(element))

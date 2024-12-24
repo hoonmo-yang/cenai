@@ -18,9 +18,11 @@ olefile
 ollama
 openpyxl
 pandas
+pdfkit
 psycopg2-binary
 pymupdf
 pypdf
+pypdf2
 python-docx
 python-pptx
 rank_bm25

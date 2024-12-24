@@ -407,3 +407,4 @@ model/
 !bin/
 artifact/
 backup/
+**/output.pdf
