@@ -30,7 +30,6 @@ export:
     - name
     extension:
     - .pdf
-    - .docx
 
 models:
   # - [gpt-4o, gpt-4o]

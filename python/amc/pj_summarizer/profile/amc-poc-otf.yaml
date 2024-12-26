@@ -21,7 +21,6 @@ export:
     keywords:
     extension:
     - .pdf
-    - .docx
 
 models:
 # - [gpt-4o]

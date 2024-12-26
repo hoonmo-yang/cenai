@@ -209,7 +209,6 @@ pdf_buffer = io.BytesIO(pdfkit.from_string(html, False))
 
 merger = PdfMerger()
 merger.append(pdf_buffer)
-merger.append(pdf_buffer)
 
 pdf = Path("output.pdf")
 

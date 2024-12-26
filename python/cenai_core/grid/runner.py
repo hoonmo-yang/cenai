@@ -20,7 +20,7 @@ from cenai_core.dataman import (
 from cenai_core.logger import Logger
 from cenai_core.pandas_helper import from_json, to_json
 from cenai_core.grid.runnable import GridRunnable
-from cenai_core.render import html_to_pdf, html_to_docx
+from cenai_core.render import html_to_pdf
 from cenai_core.system import cenai_path, load_dotenv
 
 
@@ -882,14 +882,6 @@ class GridRunner(BaseRunner):
             html_to_pdf(htmls, pdf_file)
 
             self.INFO(f"*{Q(pdf_file)} DOCUMENT EXPORT DONE")
-
-        if ".docx" in extensions:
-            docx_file = self.export_dir / f"{stem}.docx"
-            self.INFO(f"*{Q(docx_file)} DOCUMENT EXPORT ....")
-
-            html_to_docx(htmls, docx_file)
-
-            self.INFO(f"*{Q(docx_file)} DOCUMENT EXPORT DONE")
 
         self.INFO(
             f"{self.header} DOCUMENT EXPORT "
