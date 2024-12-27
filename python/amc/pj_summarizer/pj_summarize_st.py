@@ -19,8 +19,8 @@ class PJSummarizationStreamlit(Logger):
     def __init__(self):
         if "result" not in st.session_state:
             st.session_state.result = {
-                "resch_pat_id": [],
-                "html": [],
+                "nickname_ct_date": [],
+                "ct_date": [],
             }
 
         self._profile = self._change_parameter_values()
@@ -80,13 +80,13 @@ class PJSummarizationStreamlit(Logger):
             st.subheader("파일 선택")
 
             choice = st.selectbox(
-                "Choose a Patient ID:",
-                range(len(result["resch_pat_id"])),
-                format_func=lambda i: result["resch_pat_id"][i]
+                "Choose a Patient and CT:",
+                range(len(result["nickname_ct_date"])),
+                format_func=lambda i: result["nickname_ct_date"][i]
             )
 
         html = (
-            result["html"][choice] if result["resch_pat_id"] else
+            result["html"][choice] if result["nickname_ct_date"] else
             get_empty_html()
         )
 
@@ -101,18 +101,18 @@ class PJSummarizationStreamlit(Logger):
 
         result_df = runner.yield_result()
 
+        result_df["nickname_ct_date"] = result_df.apply(
+            lambda field: f"{field.nickname} [CT: {field.ct_date}]",
+            axis=1
+        )
+
         result = {
             key: result_df[key].tolist()
             for key in [
-                "resch_pat_id",
+                "nickname_ct_date",
                 "html",
             ]
         }
-
-        result["resch_pat_id"] = [
-            f"{resch_pat_id:010d}" for resch_pat_id in
-            result["resch_pat_id"]
-        ]
 
         return result
 

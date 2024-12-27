@@ -152,12 +152,13 @@ class PJSummarizer(GridRunnable):
     ) -> None:
         self.INFO(f"{self.header} SUMMARIZATION proceed ....")
 
-        self.result_df = self.resch_pat_ids.apply(
+        self.result_df = self.patient_df.apply(
             self._summarize_foreach,
             count=itertools.count(1),
-            total=self.resch_pat_ids.shape[0],
+            total=self.patient_df.shape[0],
             num_tries=num_tries,
             recovery_time=recovery_time,
+            axis=1
         ).pipe(
             self._prepare_htmls
         )
@@ -165,7 +166,7 @@ class PJSummarizer(GridRunnable):
         self.INFO(f"{self.header} SUMMARIZATION proceed DONE")
 
     def _summarize_foreach(self,
-                           resch_pat_id: int,
+                           patient: pd.Series,
                            count: Callable[..., Iterator[int]],
                            total: int,
                            num_tries: int,
@@ -174,7 +175,10 @@ class PJSummarizer(GridRunnable):
 
         question, *_ = load_text(
             self.content_dir / self.question,
-            {"resch_pat_id": resch_pat_id}
+            {
+                "nickname": patient.nickname,
+                "ct_date": patient.ct_date,
+            }
         )
 
         for i in range(num_tries):
@@ -196,7 +200,9 @@ class PJSummarizer(GridRunnable):
                 recovery_time *= 2
 
                 response = PJSummaryTemplate(
-                    resch_pat_id=resch_pat_id,
+                    nickname=patient.nickname,
+                    ct_date=patient.ct_date,
+                    resch_pat_id="",
                     birth_ym="",
                     sex_cd="",
                     frst_vist_dt="",
@@ -204,11 +210,8 @@ class PJSummarizer(GridRunnable):
                     prmr_orgn_cd="",
                     mrph_diag_cd="",
                     cancer_reg_dt="",
-                    type1="",
-                    type2="",
-                    type3="",
-                    type4="",
-                    total="LLM 내부 오류 발생",
+                    type="",
+                    summary="LLM 내부 오류 발생",
                 )
             else:
                 break
@@ -218,7 +221,9 @@ class PJSummarizer(GridRunnable):
         timer.lap()
 
         entry = pd.Series({
-            "resch_pat_id": resch_pat_id,
+            "nickname": response.nickname,
+            "ct_date": response.ct_date,
+            "resch_pat_id": response.resch_pat_id,
             "birth_ym": response.birth_ym,
             "sex_cd": response.sex_cd,
             "frst_vist_dt": response.frst_vist_dt,
@@ -226,17 +231,14 @@ class PJSummarizer(GridRunnable):
             "prmr_orgn_cd": response.prmr_orgn_cd,
             "mrph_diag_cd": response.mrph_diag_cd,
             "cancer_reg_dt": response.cancer_reg_dt,
-            "type1": response.type1,
-            "type2": response.type2,
-            "type3": response.type3,
-            "type4": response.type4,
-            "total": response.total,
+            "type": response.type,
+            "summary": response.summary,
             "time": timer.seconds,
         })
 
         self.INFO(
             f"{self.header} SUMMARIZATION "
-            f"RESCH_PAT_ID: {Q(resch_pat_id)} TIME {timer.seconds: .1f}s "
+            f"NICKANE: {Q(patient.nickname)} TIME {timer.seconds: .1f}s "
             f"[{next(count):02d}/{total:02d}] DONE"
         )
         return entry
@@ -279,6 +281,8 @@ class PJSummarizer(GridRunnable):
             "resch_pat_id": resch_pat_id,
         } | {
             key: summary[key] for key in [
+                "nickname",
+                "ct_date",
                 "birth_ym",
                 "sex_cd",
                 "frst_vist_dt",
@@ -286,11 +290,8 @@ class PJSummarizer(GridRunnable):
                 "prmr_orgn_cd",
                 "mrph_diag_cd",
                 "cancer_reg_dt",
-                "type1",
-                "type2",
-                "type3",
-                "type4",
-                "total",
+                "type",
+                "summary",
             ]
         }
 
@@ -320,12 +321,12 @@ class PJSummarizer(GridRunnable):
         return self._conn
 
     @property
-    def resch_pat_ids(self) -> list[int]:
-        return self._resch_pat_ids
+    def patient_df(self) -> pd.DataFrame:
+        return self._patient_df
 
-    @resch_pat_ids.setter
-    def resch_pat_ids(self, resch_pat_ids: list[int]) -> None:
-        self._resch_pat_ids = resch_pat_ids
+    @patient_df.setter
+    def patient_df(self, patient_df: pd.DataFrame) -> None:
+        self._patient_df = patient_df
 
     @property
     def question(self) -> str:

@@ -14,6 +14,10 @@
         <div class="section1">
             <table>
                 <tr>
+                    <td style="width: 20%;">가명</td>
+                    <td>{nickname}</td>
+                </tr>
+                <tr>
                     <td style="width: 20%;">연구환자 ID</td>
                     <td>{resch_pat_id}</td>
                 </tr>
@@ -51,29 +55,14 @@
         <h2>환자 진료 여정 요약문</h2>
         <div class="section2">
             <table>
-            <tr>
-                <th style="width: 20%;">유형</th>
-                <th>요약</th>
-            </tr>
-            <tr>
-                <td>전체</td>
-                <td>{total}</td>
-            </tr>
-            <tr>
-                <td>1. Initial diagnosis & staging</td>
-                <td>{type1}</td>
-            </tr>
-            <tr>
-                <td>2. Follow-up for pancreatic cancer without curative resection</td>
-                <td>{type2}</td>
-            </tr>
-            <tr>
-                <td>3. Follow-up after curative resection of pancreatic cancer</td>
-                <td>{type3}</td>
-            </tr>
-            <tr>
-                <td>4. Follow-up for tumor recurrence after curative resection</td>
-                <td>{type4}</td>
+                <tr>
+                    <td style="width: 20%;">예측 유형</td>
+                    <td>{type}</td>
+                </tr>
+                <tr>
+                    <td style="width: 20%;">요약</td>
+                    <td>{summary}</td>
+                </tr>
             </tr>
         </div>
     </body>

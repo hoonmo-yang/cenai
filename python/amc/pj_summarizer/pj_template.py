@@ -1,10 +1,22 @@
+from __future__ import annotations
 from pydantic import BaseModel, Field
+from enum import Enum
 
 
 class PJSummaryTemplate(BaseModel):
     class Config:
         title = "환자여정 요약문"
         description = "환자여정 요약문입니다"
+
+    nickname: str = Field(
+        ...,
+        description="환자 가명",
+    )
+
+    ct_date: str = Field(
+        ...,
+        description="요약 대상인 환자가 받은 CT진단 일자",
+    )
 
     resch_pat_id: int = Field(
         ...,
@@ -46,30 +58,19 @@ class PJSummaryTemplate(BaseModel):
         description="암등록일",
     )
 
-    type1: str = Field(
+    type: TypeEnum = Field(
         ...,
-        description="""유형 1. Initial diagnosis & staging 관점의 환자 진료 여정 요약 내용""",
+        description="""유형""",
     )
 
-    type2: str = Field(
+    summary: str = Field(
         ...,
-        description="""유형 2. Follow-up for pancreatic cancer without curative resection 관점의
-                    환자 진료 여정 요약 내용""",
+        description="""유형에 기반한 환자 진료 여정 요약 내용""",
     )
 
-    type3: str = Field(
-        ...,
-        description="""유형 3. Follow-up after curative resection of pancreatic cancer 관점의
-                    환자 진료 여정 요약 내용""",
-    )
 
-    type4: str = Field(
-        ...,
-        description="""유형 4. Follow-up for tumor recurrence after curative resection 관점의
-                    환자 진료 여정 요약 내용""",
-    )
-
-    total: str = Field(
-        ...,
-        description="""전체적인 환자 진료 여정 요약 내용""",
-    )
+class TypeEnum(str, Enum):
+    TYPE1 = "1. Initial diagnosis & staging"
+    TYPE2 = "2. Follow-up for pancreatic cancer without curative resection"
+    TYPE3 = "3. Follow-up after curative resection of pancreatic cancer"
+    TYPE4 = "4. Follow-up for tumor recurrence after curative resection"

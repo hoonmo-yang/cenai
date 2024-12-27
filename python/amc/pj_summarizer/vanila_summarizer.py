@@ -59,7 +59,7 @@ class VanilaSummarizer(PJSummarizer):
         db = SQLDatabase.from_uri(self.cenai_db.url)
 
         self.question = question
-        self.resch_pat_ids = self._get_resch_pat_ids(db)
+        self.patient_df = self._get_patients()
 
         agent_chain = self._build_agent_chain(db)
 
@@ -69,9 +69,23 @@ class VanilaSummarizer(PJSummarizer):
             summarize_prompt=summarize_prompt,
         )
 
-    def _get_resch_pat_ids(self, db: SQLDatabase) -> pd.Series:
-        ids = db.run("SELECT resch_pat_id FROM patient")
-        return pd.Series([id[0] for id in ast.literal_eval(ids)])
+    def _get_patients(self) -> pd.DataFrame:
+        patient_df = pd.DataFrame({
+            "nickname": [
+                "김유신",
+                "강감찬",
+                "이순신",
+                "신사임당",
+            ],
+            "ct_date": [
+                "2018-01-06",
+                "2017-08-06",
+                "2017-08-03",
+                "2011-05-02",
+            ],
+        })
+
+        return patient_df
 
     def _build_agent_chain(self, db: SQLDatabase) -> Runnable:
         self.INFO(f"{self.header} AGENT CHAIN prepared ....")
