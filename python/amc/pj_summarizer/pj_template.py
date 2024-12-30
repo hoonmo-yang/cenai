@@ -60,7 +60,12 @@ class PJSummaryTemplate(BaseModel):
 
     type: TypeEnum = Field(
         ...,
-        description="""유형""",
+        description="""예측 유형""",
+    )
+
+    reason: str = Field(
+        ...,
+        description="""유형을 에측한 이유 및 근거""",
     )
 
     summary: str = Field(

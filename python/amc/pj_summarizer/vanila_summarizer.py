@@ -22,14 +22,12 @@ class VanilaSummarizer(PJSummarizer):
     def __init__(self,
                  models: Sequence[str],
                  agent_prompt: str,
-                 summarize_prompt: str,
                  question: str,
                  metadata: Struct
                 ):
 
         case_suffix = "_".join([
             agent_prompt.split(".")[0],
-            summarize_prompt.split(".")[0],
             question.split(".")[0],
         ])
 
@@ -47,12 +45,10 @@ class VanilaSummarizer(PJSummarizer):
             0,
             [
                 "agent_prompt",
-                "summarize_prompt",
                 "question",
             ]
         ] = [
             agent_prompt,
-            summarize_prompt,
             question,
         ]
 
@@ -66,7 +62,6 @@ class VanilaSummarizer(PJSummarizer):
         self.main_chain = self._build_main_chain(
             agent_chain=agent_chain,
             agent_prompt=agent_prompt,
-            summarize_prompt=summarize_prompt,
         )
 
     def _get_patients(self) -> pd.DataFrame:
@@ -105,37 +100,29 @@ class VanilaSummarizer(PJSummarizer):
 
     def _build_main_chain(self, 
                           agent_chain: Runnable,
-                          agent_prompt: str,
-                          summarize_prompt: str
+                          agent_prompt: str
                           ) -> Runnable:
         self.INFO(f"{self.header} MAIN CHAIN prepared ....")
 
-        agent_args, *_ = load_prompt(self.content_dir / agent_prompt)
-        agent_prompt = PromptTemplate(**agent_args)
 
         parser = PydanticOutputParser(
             pydantic_object=PJSummaryTemplate,
         )
 
-        summarize_args, partials = load_prompt(
-            self.content_dir / summarize_prompt
-        )
+        agent_args, partials = load_prompt(self.content_dir / agent_prompt)
 
-        full_summarize_args = summarize_args | {
+        full_agent_args = agent_args | {
             "partial_variables": {
                 partials[0]: parser.get_format_instructions(),
             },
         }
 
-        summarize_prompt = PromptTemplate(**full_summarize_args)
+        agent_prompt = PromptTemplate(**full_agent_args)
 
         chain = (
             agent_prompt |
-            agent_chain | {
-                "content": itemgetter("output")
-            } |
-            summarize_prompt |
-            self.model[0] |
+            agent_chain | 
+            itemgetter("output") |
             parser
         )
 

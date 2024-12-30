@@ -34,13 +34,10 @@ cases:
   - vanila_summarizer
   content_kr:
   - agent_prompt
-  - summarize_prompt
   - question
 
 content_kr:
   agent_prompt:
   - pt-agnt1-kr.yaml
-  summarize_prompt:
-  - pt-sum-kr.yaml
   question:
   - uq-agnt-kr.yaml

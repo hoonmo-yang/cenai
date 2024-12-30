@@ -211,6 +211,7 @@ class PJSummarizer(GridRunnable):
                     mrph_diag_cd="",
                     cancer_reg_dt="",
                     type="",
+                    reason="",
                     summary="LLM 내부 오류 발생",
                 )
             else:
@@ -232,6 +233,7 @@ class PJSummarizer(GridRunnable):
             "mrph_diag_cd": response.mrph_diag_cd,
             "cancer_reg_dt": response.cancer_reg_dt,
             "type": response.type,
+            "reason": response.reason,
             "summary": response.summary,
             "time": timer.seconds,
         })
@@ -291,6 +293,7 @@ class PJSummarizer(GridRunnable):
                 "mrph_diag_cd",
                 "cancer_reg_dt",
                 "type",
+                "reason",
                 "summary",
             ]
         }
