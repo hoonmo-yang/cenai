@@ -90,7 +90,7 @@ class VanilaSummarizer(PJSummarizer):
             toolkit=SQLDatabaseToolkit(db=db, llm=self.model[0]),
             verbose=True,
             agent_type="tool-calling",
-            max_iterations=30,
+            max_iterations=100,
         )
 
         agent_chain = AgentExecutorRunnable(agent)

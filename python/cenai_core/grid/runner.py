@@ -608,7 +608,8 @@ class GridRunner(BaseRunner):
 
         if backup_file.is_file():
             if error:
-                self.data_json.unlink()
+                if self.data_json.is_file():
+                    self.data_json.unlink()
                 shutil.copy2(backup_file, self.data_json)
 
             backup_file.unlink()

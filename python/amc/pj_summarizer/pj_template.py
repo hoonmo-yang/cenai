@@ -75,6 +75,8 @@ class PJSummaryTemplate(BaseModel):
 
 
 class TypeEnum(str, Enum):
+    NOT_AVAILABLE = "Not available"
+    INSUFFICIENT_EVIDENCE = "Insufficient evidence"
     TYPE1 = "1. Initial diagnosis & staging"
     TYPE2 = "2. Follow-up for pancreatic cancer without curative resection"
     TYPE3 = "3. Follow-up after curative resection of pancreatic cancer"

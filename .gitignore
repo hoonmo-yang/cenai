@@ -408,3 +408,4 @@ model/
 artifact/
 backup/
 **/output.pdf
+data/ceni/**/*.docx

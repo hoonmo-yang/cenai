@@ -202,7 +202,7 @@ class PJSummarizer(GridRunnable):
                 response = PJSummaryTemplate(
                     nickname=patient.nickname,
                     ct_date=patient.ct_date,
-                    resch_pat_id="",
+                    resch_pat_id=0,
                     birth_ym="",
                     sex_cd="",
                     frst_vist_dt="",
@@ -210,7 +210,7 @@ class PJSummarizer(GridRunnable):
                     prmr_orgn_cd="",
                     mrph_diag_cd="",
                     cancer_reg_dt="",
-                    type="",
+                    type="Not available",
                     reason="",
                     summary="LLM 내부 오류 발생",
                 )

@@ -5,36 +5,29 @@ partial_variables:
 - format_instructions
 
 template: |
-  당신은 대한민국 소속 전문의처럼 말해야 합니다.
-  대한민국 전문의는 의학 용어는 영어를 사용하나 그외는 반드시 한국어를 사용합니다.
+  당신은 대한민국의 췌장암 전문의입니다.
+  의학 전문 용어는 영어를 사용하나 그외는 반드시 한국어를 사용합니다.
 
-  췌장암 환자에서 환자가 진단과 치료 과정에서 영상검사가 시행되는 임상적 상황을 아래의 4가지 유형으로 분류합니다.
-  각 유형에 대한 구체적인 설명은 아래와 같습니다.
+  환자의 영상 검사는 아래 4가지 유형 중 하나입니다.
 
-  *유형 1. Initial diagnosis & staging*:		
-    - 환자가 병원에 내원하여 CT, MRI 검사를 시행해서 췌장암이 최초로 진단된 상황 내지
-      췌장암이 의심되는 환자에서 병기 결정 (staging)을 위해 검사가 시행된 경우가 이 유형에 해당된다.
-    - 췌장암의 진단 확신도가 높지 않은 경우 췌장암 이외의 다른 감별진단을 제시할 수 있다.
-    - CT, MRI 판독문 내용은 췌장암의 진단 및 가능한 다른 감별진단, 췌장암의 크기, 췌장암의 주변 혈관 및 장기의 침범 여부, 림프절 전이 (lymph node metastasis)여부,
-      원격전이 (distant metastasis – liver, peritoneal metastasis, distant lymph node metastasis 등) 여부 등이 중심이다.
-   
+  *유형 1. Initial diagnosis & staging*:
+  환자가 병원에 내원한 후 아직 췌장암으로 진단되지 않고 췌장암 치료를 받은 적이 없는데
+  처음으로 췌장암 진단을 내려지는 영상 검사가 이 유형에 해당한다.
+
   *유형 2. Follow-up for pancreatic cancer without curative resection*:	
-    - 췌장암 진단 후에 췌장암에 대한 수술 (curative resection)을 시행하지 않은 환자에서 비수술적 치료 (항암치료, 방사선 치료, 보존적 치료) 혹은 특별한 치료 없이
-      추적 관찰하는 상태에서 시행된 검사가 이 유형에 해당된다.
-    - CT, MRI 판독문은 이전 CT, MRI 검사에 비해서 췌장암의 크기의 변화, 췌장암의 주변 장기 혹은 혈관 침범 범위의 변화, 림프절 전이 (lymph node metastasis) 혹은
-      원격 전이 (distant metastasis)의 발생여부 및 기존에 있던 전이 병변의 변화에 대한 평가가 중심이다. 
+  환자가 췌장암 진단을 받았으나 근치적 수술을 받지 않은 시점으로,
+  항암 치료, 방사선 치료, 보존적 치료 등 비수술적 치료가 이루어졌거나
+  별다른 치료 없이 추적 관찰하는 상황에서 시행되는 영상 검사가 이 유형에 해당한다.
 
-  *유형 3. Follow-up after curative resection of pancreatic cancer*:		
-    - 췌장암으로  근치적 수술 (curative resection)을 시행한 환자에서 수술 후 합병증 여부와 췌장암의 재발 여부를 판정하기 위해 시행된 CT, MRI가 이 유형에 해당된다.
-    - CT, MRI 판독은 수술과 연관된 이상소견의 여부, 국소 재발 (local tumor recurrence), 림프절 전이 (lymph node metastasis),
-      원격 전이 (distant metastasis)의 발생 여부에 대한 내용을 포함함. 췌장암 재발로 확신하기 어려운 의심스러운 병변의 변화를 평가하는 내용이 포함될 수 있다
+  *유형 3. Follow-up after curative resection of pancreatic cancer*:
+  환자가 근치적 수술을 받은 이후에 시행된 영상 검사가 췌장암의 재발 소견이 없거나 처음으로 췌장암 재발이
+  진단되는 소견이 나올 경우 이 유형에 속한다.
+  췌장암의 재발이란 근치적 수술 이후 새로 발생한 국소재발 (local recurrence), 림프절 전이 (lymph node metastasis),
+  원격 전이(distant metastasis - liver metastasis, peritoneal metastasis, lung metastasis 포함) 등을 의미한다.
 
   *유형 4. Follow-up for tumor recurrence after curative resection*:
-    - 췌장암으로 curative resection 환자에서 pancreatic cancer recurrence가 이전 검사에서 확인되어 항암, 방사선, 혹은 보존적 치료 후 재발암의 변화를 평가하기 위해
-      CT, MRI가 시행된 경우가 이 유형에 해당된다.
-    - Pancreatic cancer recurrence는 curative resection후 새로 발생한국소재발 (local recurrence), 림프절 전이 (lymph node metastasis),
-      원격 전이(distant metastasis - liver metastasis, peritoneal metastasis, lung metastasis 등을 포함) 등을 의미한다. 
-    - CT, MRI 판독 내용은 pancreatic cancer recurrence 병변의 변화와 recurred tumor의 발생 여부가 주된 내용이다. 
+  환자가 근치적 수술을 받은 이후에 유형 3에 해당하는 영상 검사로 이미 췌장암 재발 진단을 받았고 이후
+  재발된 종양 및 전이의 병변 변화 평가를 위해서 행해지는 영상 검사가 이 유형에 해당한다.
 
   {question}
 
